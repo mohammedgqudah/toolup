@@ -1,0 +1,12 @@
+[package]
+name = "toolup"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.100"
+clap = { version = "4.5.51", features = ["derive"] }
+indicatif = "0.18.2"
+reqwest = { version = "0.12.24", features = ["blocking"] }
+tar = "0.4.44"
+xz2 = "0.1.7"
