@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use crate::{
     download::{
         DownloadResult::{Cached, Created, Replaced},
-        cache_dir, decompress_tar_xz, download,
+        cache_dir, cross_prefix, decompress_tar_xz, download,
     },
     gcc::Sysroot,
     make::{run_configure_with_env_in, run_make_with_env_in},
@@ -86,6 +86,14 @@ pub fn install_glibc_sysroot(
         ("RANLIB".into(), format!("{architecture}-ranlib")),
         ("LD".into(), format!("{architecture}-ld")),
         ("READELF".into(), format!("{architecture}-readelf")),
+        (
+            "PATH".into(),
+            format!(
+                "{}:{}",
+                cross_prefix()?.join("bin").display(),
+                std::env::var("PATH")?
+            ),
+        ),
     ];
     run_configure_with_env_in(&objdir, &args, env.clone())?;
 
