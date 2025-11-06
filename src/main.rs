@@ -14,9 +14,8 @@ use binutils::install_binutils;
 use gcc::install_gcc;
 
 use crate::{
-    download::cache_dir,
     gcc::{GccStage, Sysroot},
-    linux::install_headers,
+    profile::Profile,
     sysroot::setup_sysroot,
 };
 
@@ -35,14 +34,23 @@ fn main() -> Result<()> {
 
     let profile = profile::select_profile(&args.architecture, args.libc.as_ref());
 
-    install_binutils(args.architecture.clone(), args.jobs)?;
-    let sysroot = setup_sysroot(&args.architecture, profile, args.jobs)?;
-    install_gcc(
-        &args.architecture,
-        profile,
-        args.jobs,
-        GccStage::Final(Some(Sysroot(sysroot))),
-    )?;
+    match profile {
+        Profile::Freestanding => {
+            install_binutils(args.architecture.clone(), args.jobs)?;
+            install_gcc(&args.architecture, profile, args.jobs, GccStage::Stage1)?;
+        }
+        Profile::LinuxGlibc => {
+            install_binutils(args.architecture.clone(), args.jobs)?;
+            let sysroot = setup_sysroot(&args.architecture, profile, args.jobs)?;
+            install_gcc(
+                &args.architecture,
+                profile,
+                args.jobs,
+                GccStage::Final(Some(Sysroot(sysroot))),
+            )?;
+        }
+        _ => unimplemented!(),
+    }
 
     //println!("=> building binutils");
     //install_binutils(args.architecture.clone(), args.jobs)?;

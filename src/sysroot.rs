@@ -10,6 +10,14 @@ use crate::{
     profile::Profile,
 };
 
+/// Create and populate a sysroot for a target.
+///
+/// This:
+///   1. Creates the sysroot directory
+///   2. Installs Linux kernel headers into the sysroot
+///   3. Builds a stage1 cross-compiler to configure and build glibc into the sysroot
+///
+/// The caller must already have installed binutils.
 pub fn setup_sysroot(
     architecture: impl AsRef<str>,
     profile: Profile,
