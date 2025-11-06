@@ -16,6 +16,14 @@ pub fn cache_dir() -> Result<PathBuf> {
     Ok(cache)
 }
 
+pub fn cross_prefix() -> Result<PathBuf> {
+    let toolchains = PathBuf::from(std::env::var("HOME").context("reading $HOME")?)
+        .join(".toolup")
+        .join("toolchains");
+    fs::create_dir_all(&toolchains).context("creating .toolup/toolchains")?;
+    Ok(toolchains)
+}
+
 pub enum DownloadResult {
     /// Replaced the cached file (user requested to not use cache)
     Replaced(PathBuf),

@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 use crate::{
     download::{
         DownloadResult::{Cached, Created, Replaced},
-        cache_dir, decompress_tar_xz, download,
+        cache_dir, cross_prefix, decompress_tar_xz, download,
     },
     make::{run_configure_in, run_make_in},
     profile::Profile,
@@ -71,7 +71,7 @@ pub fn install_gcc(
                 &objdir,
                 &[
                     t.as_str(),
-                    "--prefix=/home/hyper/opt/cross",
+                    format!("--prefix={}", cross_prefix()?.display()).as_str(),
                     "--disable-nls",
                     "--enable-languages=c,c++".into(),
                     "--without-headers".into(),
@@ -97,8 +97,7 @@ pub fn install_gcc(
             let mut args: Vec<String> = vec![
                 "--target".into(),
                 architecture.to_string(),
-                "--prefix".into(),
-                "/home/hyper/opt/cross".into(),
+                format!("--prefix={}", cross_prefix()?.display()),
                 "--disable-nls".into(),
                 "--enable-languages=c,c++".into(),
                 "--disable-multilib".into(),

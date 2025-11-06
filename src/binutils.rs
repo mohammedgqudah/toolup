@@ -3,7 +3,7 @@ use anyhow::{Context, Result};
 use crate::{
     download::{
         DownloadResult::{Cached, Created, Replaced},
-        cache_dir, decompress_tar_xz, download,
+        cache_dir, cross_prefix, decompress_tar_xz, download,
     },
     make::{run_configure_in, run_make_in},
 };
@@ -37,7 +37,7 @@ pub fn install_binutils(architecture: String, jobs: u64) -> Result<()> {
             "--target",
             architecture.as_str(),
             "--prefix",
-            "/home/hyper/opt/cross",
+            cross_prefix()?.to_str().unwrap(),
             "--disable-nls",
             "--disable-werror",
         ],
