@@ -9,9 +9,18 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail};
+use chrono::{Local, SecondsFormat};
 use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::download::cache_dir;
+
+pub fn log_filename(id: impl AsRef<str>) -> String {
+    let ts = Local::now()
+        .to_rfc3339_opts(SecondsFormat::Millis, true)
+        .replace(':', "-");
+
+    format!("{}-{}.log", id.as_ref(), ts)
+}
 
 pub fn run_make_in<P: AsRef<Path>>(workdir: P, args: &[&str]) -> Result<()> {
     _run_make_in(workdir, args, None)
@@ -49,27 +58,8 @@ pub fn _run_make_in<P: AsRef<Path>>(
     let mut child = _cmd.spawn().context("spawning `make`")?;
     let stdout = child.stdout.take().unwrap();
     let stderr = child.stderr.take().unwrap();
-    let log_path = cache_dir()?.join("run.txt");
+    let log_path = cache_dir()?.join(log_filename("make"));
     let log = Arc::new(Mutex::new(File::create(&log_path)?));
-
-    // stream stdout
-    //let pb_out = pb.clone();
-    //let t_out = std::thread::spawn(move || {
-    //    let reader = BufReader::new(stdout);
-    //    for line in reader.lines().flatten() {
-    //        pb_out.set_message(line.chars().take(80).collect::<String>());
-    //    }
-    //});
-
-    //// stream stderr
-    //let pb_err = pb.clone();
-    //let t_err = std::thread::spawn(move || {
-    //    let reader = BufReader::new(stderr);
-    //    for line in reader.lines().flatten() {
-    //        //eprintln!("{line}");
-    //        //pb_err.set_message(line.chars().take(80).collect::<String>());
-    //    }
-    //});
 
     let t_out = {
         // stream stdout
@@ -112,7 +102,11 @@ pub fn _run_make_in<P: AsRef<Path>>(
         Ok(())
     } else {
         pb.finish();
-        bail!("make exited with status {}", status);
+        bail!(
+            "make exited with status {}\nFull output is available at {}",
+            status,
+            log_path.display()
+        );
     }
 }
 
@@ -152,7 +146,7 @@ pub fn _run_configure_in<P: AsRef<Path>, S: AsRef<OsStr>>(
     let stdout = child.stdout.take().unwrap();
     let stderr = child.stderr.take().unwrap();
 
-    let log_path = cache_dir()?.join("run.txt");
+    let log_path = cache_dir()?.join(log_filename("configure"));
     let log = Arc::new(Mutex::new(File::create(&log_path)?));
 
     let t_out = {
@@ -197,7 +191,7 @@ pub fn _run_configure_in<P: AsRef<Path>, S: AsRef<OsStr>>(
     } else {
         pb.finish();
         bail!(
-            "configure exited with status {}\n out: {}",
+            "configure exited with status {}\nFull output is available at {}",
             status,
             log_path.display()
         );
