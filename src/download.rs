@@ -26,7 +26,9 @@ pub enum DownloadResult {
 }
 
 /// download a file to cache
-pub fn download(url: &str, filename: &str, use_cache: bool) -> Result<DownloadResult> {
+pub fn download<S: AsRef<str>>(url: S, filename: S, use_cache: bool) -> Result<DownloadResult> {
+    let filename = filename.as_ref();
+    let url = url.as_ref();
     let file_path = cache_dir()?.join(filename);
     let cache_exists = file_path.exists();
 
