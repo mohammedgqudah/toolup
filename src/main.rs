@@ -25,6 +25,8 @@ struct Args {
     architecture: String,
     #[arg(long)]
     libc: Option<String>,
+    #[arg(long, help = "gcc version", default_value = "15.2.0")]
+    gcc: String,
     #[arg(short, long, default_value_t = 10)]
     jobs: u64,
 }
@@ -37,13 +39,20 @@ fn main() -> Result<()> {
     match profile {
         Profile::Freestanding => {
             install_binutils(args.architecture.clone(), args.jobs)?;
-            install_gcc(&args.architecture, profile, args.jobs, GccStage::Stage1)?;
+            install_gcc(
+                &args.architecture,
+                &args.gcc,
+                profile,
+                args.jobs,
+                GccStage::Stage1,
+            )?;
         }
         Profile::LinuxGlibc => {
             install_binutils(args.architecture.clone(), args.jobs)?;
-            let sysroot = setup_sysroot(&args.architecture, profile, args.jobs)?;
+            let sysroot = setup_sysroot(&args.architecture, &args.gcc, profile, args.jobs)?;
             install_gcc(
                 &args.architecture,
+                &args.gcc,
                 profile,
                 args.jobs,
                 GccStage::Final(Some(Sysroot(sysroot))),

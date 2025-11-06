@@ -20,6 +20,7 @@ use crate::{
 /// The caller must already have installed binutils.
 pub fn setup_sysroot(
     architecture: impl AsRef<str>,
+    gcc_version: impl AsRef<str>,
     profile: Profile,
     jobs: u64,
 ) -> Result<PathBuf> {
@@ -37,7 +38,13 @@ pub fn setup_sysroot(
     // 1. install linux headers
     linux::install_headers(architecture.as_ref(), &sysroot)?;
 
-    install_gcc(architecture.as_ref(), profile, jobs, GccStage::Stage1)?;
+    install_gcc(
+        architecture.as_ref(),
+        gcc_version,
+        profile,
+        jobs,
+        GccStage::Stage1,
+    )?;
 
     install_glibc_sysroot(Sysroot(sysroot.clone()), profile, architecture)?;
 

@@ -35,17 +35,20 @@ pub enum GccStage {
 
 pub fn install_gcc(
     architecture: impl AsRef<str>,
+    version: impl AsRef<str>,
     profile: Profile,
     jobs: u64,
     stage: GccStage,
 ) -> Result<()> {
     let architecture = architecture.as_ref();
-    let gcc_dir = cache_dir()?.join("gcc-15.2.0");
+    let gcc_name = format!("gcc-{}", version.as_ref());
+    let tarball = format!("{gcc_name}.tar.xz");
+    let gcc_dir = cache_dir()?.join(&gcc_name);
 
     if !gcc_dir.exists() {
         let download_result = download(
-            "https://ftp.gnu.org/gnu/gcc/gcc-15.2.0/gcc-15.2.0.tar.xz",
-            "gcc-15.2.0.tar.xz",
+            format!("https://ftp.gnu.org/gnu/gcc/{gcc_name}/{tarball}"),
+            tarball,
             true,
         )
         .context("failed to download gcc")?;

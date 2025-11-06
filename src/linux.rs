@@ -7,7 +7,7 @@ use crate::{
         DownloadResult::{Cached, Created, Replaced},
         cache_dir, decompress_tar_xz, download,
     },
-    make::{run_configure_in, run_make_in},
+    make::run_make_in,
     profile::kernel_arch,
 };
 
