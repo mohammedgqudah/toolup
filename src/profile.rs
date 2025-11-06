@@ -14,6 +14,7 @@ pub enum Profile {
     ExternalSysroot,
 }
 
+// TODO: this auto detection was an AI auto-complete, review later.
 pub fn select_profile<S: AsRef<str>>(arch: S, libc: Option<S>) -> Profile {
     // If user explicitly requests a libc:
     if let Some(l) = libc {

@@ -52,10 +52,5 @@ fn main() -> Result<()> {
         _ => unimplemented!(),
     }
 
-    //println!("=> building binutils");
-    //install_binutils(args.architecture.clone(), args.jobs)?;
-    //println!("=> building GCC");
-    //install_gcc(args.architecture, args.jobs)?;
-
     Ok(())
 }
