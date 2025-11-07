@@ -6,10 +6,7 @@ use std::{
 use anyhow::{Context, Result};
 
 use crate::{
-    download::{
-        DownloadResult::{Cached, Created, Replaced},
-        cache_dir, cross_prefix, decompress_tar_xz, download,
-    },
+    download::{cross_prefix, download_and_decompress},
     make::{run_configure_in, run_make_in},
     profile::Profile,
 };
@@ -43,21 +40,13 @@ pub fn install_gcc(
     let architecture = architecture.as_ref();
     let gcc_name = format!("gcc-{}", version.as_ref());
     let tarball = format!("{gcc_name}.tar.xz");
-    let gcc_dir = cache_dir()?.join(&gcc_name);
 
-    if !gcc_dir.exists() {
-        let download_result = download(
-            format!("https://ftp.gnu.org/gnu/gcc/{gcc_name}/{tarball}"),
-            tarball,
-            true,
-        )
-        .context("failed to download gcc")?;
-
-        let path = match download_result {
-            Replaced(p) | Created(p) | Cached(p) => p,
-        };
-        decompress_tar_xz(path, cache_dir()?)?;
-    }
+    let gcc_dir = download_and_decompress(
+        format!("https://ftp.gnu.org/gnu/gcc/{gcc_name}/{tarball}"),
+        gcc_name,
+        true,
+    )
+    .context("failed to download gcc")?;
 
     let jobs = jobs.to_string();
     match stage {

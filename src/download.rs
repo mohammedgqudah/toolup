@@ -39,11 +39,24 @@ pub enum DownloadResult {
     Cached(PathBuf),
 }
 
-/// download a file to cache
-pub fn download<S: AsRef<str>>(url: S, filename: S, use_cache: bool) -> Result<DownloadResult> {
-    let filename = filename.as_ref();
+pub fn archives_dir() -> Result<PathBuf> {
+    let dir = cache_dir()?.join("archives");
+    std::fs::create_dir_all(&dir)?;
+    Ok(dir)
+}
+
+/// Download an archive.
+pub fn download_archive<S: AsRef<str>>(url: S, use_cache: bool) -> Result<DownloadResult> {
+    let filename = url.as_ref().split("/").last().context(format!(
+        "couldn't derive a filename from URL: {}",
+        url.as_ref()
+    ))?;
+    let hash = &blake3::hash(url.as_ref().as_bytes()).to_hex()[..12];
+    // prepend the url hash to the filename
+    let filename = format!("{hash}-{filename}");
+
     let url = url.as_ref();
-    let file_path = cache_dir()?.join(filename);
+    let file_path = archives_dir()?.join(&filename);
     let cache_exists = file_path.exists();
 
     if use_cache && cache_exists {
@@ -68,7 +81,7 @@ pub fn download<S: AsRef<str>>(url: S, filename: S, use_cache: bool) -> Result<D
 
     let pb = ProgressBar::new(total_size);
     pb.set_style(style);
-    pb.set_message(filename.to_string());
+    pb.set_message(filename.clone());
 
     // TODO: download to a *.download file and move to file_path when download is finished
     let mut dest = File::create(&file_path).context(format!("creating {}", filename))?;
@@ -121,4 +134,28 @@ pub fn decompress_tar_xz<P: AsRef<Path>, Q: AsRef<Path>>(
     pb_entry.finish_and_clear();
 
     Ok(())
+}
+
+/// Returns the extracted directory path.
+pub fn download_and_decompress(
+    url: impl AsRef<str>,
+    dirname: impl AsRef<str>,
+    use_cache: bool,
+) -> Result<PathBuf> {
+    if cache_dir()?.join(dirname.as_ref()).exists() {
+        return Ok(cache_dir()?.join(dirname.as_ref()));
+    }
+
+    let download_result = download_archive(url, use_cache)?;
+    let archive_path = match download_result {
+        DownloadResult::Cached(p) => {
+            println!("=> using cached {}", dirname.as_ref());
+            p
+        }
+        DownloadResult::Replaced(p) | DownloadResult::Created(p) => p,
+    };
+
+    decompress_tar_xz(archive_path, cache_dir()?)?;
+
+    Ok(cache_dir()?.join(dirname.as_ref()))
 }

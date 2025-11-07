@@ -12,7 +12,7 @@ use anyhow::{Context, Result, bail};
 use chrono::{Local, SecondsFormat};
 use indicatif::{ProgressBar, ProgressStyle};
 
-use crate::download::{cache_dir, logs_dir};
+use crate::download::logs_dir;
 
 pub fn log_filename(id: impl AsRef<str>) -> String {
     let ts = Local::now()

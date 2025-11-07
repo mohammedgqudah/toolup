@@ -3,10 +3,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 
 use crate::{
-    download::{
-        DownloadResult::{Cached, Created, Replaced},
-        cache_dir, cross_prefix, decompress_tar_xz, download,
-    },
+    download::{cache_dir, cross_prefix, download_and_decompress},
     make::{run_make_in, run_make_with_env_in},
     profile::kernel_arch,
 };
@@ -21,19 +18,9 @@ pub fn download_linux(version: impl AsRef<str>) -> Result<PathBuf> {
         "https://cdn.kernel.org/pub/linux/kernel/v{major}.x/{tarball}",
         tarball = &tarball
     );
-    let linux_dir = cache_dir()?.join(format!("linux-{version}"));
 
-    // download the linux source if the tarball doesn't exist.
-    if !linux_dir.exists() {
-        let download_result =
-            download(&url, &tarball, true).context(format!("failed to download {tarball}"))?;
-
-        let path = match download_result {
-            Replaced(p) | Created(p) | Cached(p) => p,
-        };
-
-        decompress_tar_xz(path, cache_dir()?)?;
-    }
+    let linux_dir = download_and_decompress(&url, format!("linux-{version}"), true)
+        .context(format!("failed to download {tarball}"))?;
 
     Ok(linux_dir)
 }

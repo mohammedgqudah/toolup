@@ -3,10 +3,7 @@ use std::{path::PathBuf, process::Command};
 use anyhow::{Context, Result};
 
 use crate::{
-    download::{
-        DownloadResult::{Cached, Created, Replaced},
-        cache_dir, cross_prefix, decompress_tar_xz, download,
-    },
+    download::{cross_prefix, download_and_decompress},
     gcc::Sysroot,
     make::{run_configure_with_env_in, run_make_with_env_in},
     profile::Profile,
@@ -20,19 +17,9 @@ pub fn download_glibc(version: impl AsRef<str>) -> Result<PathBuf> {
         "https://ftp.gnu.org/gnu/glibc/{tarball}",
         tarball = &tarball
     );
-    let glibc_dir = cache_dir()?.join(format!("glibc-{version}"));
 
-    // download the glibc source if the tarball doesn't exist.
-    if !glibc_dir.exists() {
-        let download_result =
-            download(&url, &tarball, true).context(format!("failed to download {tarball}"))?;
-
-        let path = match download_result {
-            Replaced(p) | Created(p) | Cached(p) => p,
-        };
-
-        decompress_tar_xz(path, cache_dir()?)?;
-    }
+    let glibc_dir = download_and_decompress(&url, format!("glibc-{version}"), true)
+        .context(format!("failed to download {tarball}"))?;
 
     Ok(glibc_dir)
 }
