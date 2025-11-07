@@ -12,7 +12,7 @@ use anyhow::{Context, Result, bail};
 use chrono::{Local, SecondsFormat};
 use indicatif::{ProgressBar, ProgressStyle};
 
-use crate::download::cache_dir;
+use crate::download::{cache_dir, logs_dir};
 
 pub fn log_filename(id: impl AsRef<str>) -> String {
     let ts = Local::now()
@@ -58,7 +58,7 @@ pub fn _run_make_in<P: AsRef<Path>>(
     let mut child = _cmd.spawn().context("spawning `make`")?;
     let stdout = child.stdout.take().unwrap();
     let stderr = child.stderr.take().unwrap();
-    let log_path = cache_dir()?.join(log_filename("make"));
+    let log_path = logs_dir()?.join(log_filename("make"));
     let log = Arc::new(Mutex::new(File::create(&log_path)?));
 
     let t_out = {
@@ -146,7 +146,7 @@ pub fn _run_configure_in<P: AsRef<Path>, S: AsRef<OsStr>>(
     let stdout = child.stdout.take().unwrap();
     let stderr = child.stderr.take().unwrap();
 
-    let log_path = cache_dir()?.join(log_filename("configure"));
+    let log_path = logs_dir()?.join(log_filename("configure"));
     let log = Arc::new(Mutex::new(File::create(&log_path)?));
 
     let t_out = {

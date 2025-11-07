@@ -10,15 +10,14 @@ it manages:
 
 ## Usage Examples
 ```bash
-toolup avr-elf
-toolup riscv64-linux-gnu
-toolup x86_64-elf
+toolup toolchain avr-elf
+toolup toolchain riscv64-linux-gnu
+toolup toolchain x86_64-elf
 ```
 
-## Todo
 ```bash
 # quickly build a kernel image and a minimal rootfs and start qemu-system-<arch> in the terminal
-toolup linux --linux 6.1 --arch riscv64
+toolup linux --linux 6.16 -a riscv64-linux-gnu
 ```
 
 ## Screenshots

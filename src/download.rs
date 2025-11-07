@@ -16,6 +16,12 @@ pub fn cache_dir() -> Result<PathBuf> {
     Ok(cache)
 }
 
+pub fn logs_dir() -> Result<PathBuf> {
+    let logs = cache_dir()?.join("logs");
+    fs::create_dir_all(&logs).context("creating toolup logs dir")?;
+    Ok(logs)
+}
+
 pub fn cross_prefix() -> Result<PathBuf> {
     let toolchains = PathBuf::from(std::env::var("HOME").context("reading $HOME")?)
         .join(".toolup")
