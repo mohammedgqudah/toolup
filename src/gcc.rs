@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 use crate::{
     download::{cross_prefix, download_and_decompress},
     make::{run_configure_in, run_make_in},
-    profile::Profile,
+    profile::Target,
 };
 
 pub struct Sysroot(pub PathBuf);
@@ -31,13 +31,11 @@ pub enum GccStage {
 }
 
 pub fn install_gcc(
-    architecture: impl AsRef<str>,
+    target: &Target,
     version: impl AsRef<str>,
-    profile: Profile,
     jobs: u64,
     stage: GccStage,
 ) -> Result<()> {
-    let architecture = architecture.as_ref();
     let gcc_name = format!("gcc-{}", version.as_ref());
     let tarball = format!("{gcc_name}.tar.xz");
 
@@ -52,10 +50,10 @@ pub fn install_gcc(
     match stage {
         GccStage::Stage1 => {
             println!("=> stage1 gcc");
-            let objdir = gcc_dir.join(format!("objdir-stage1-arch-{}", architecture));
+            let objdir = gcc_dir.join(format!("objdir-stage1-arch-{}", target.to_string()));
             std::fs::create_dir_all(&objdir).context("failed to create an objdir for the arch")?;
 
-            let t = format!("--target={architecture}");
+            let t = format!("--target={}", target.to_string());
             run_configure_in(
                 &objdir,
                 &[
@@ -80,12 +78,11 @@ pub fn install_gcc(
         GccStage::Final(maybe_sysroot) => {
             println!("=> final stage gcc");
 
-            let objdir = gcc_dir.join(format!("objdir-final-arch-{}", architecture));
+            let objdir = gcc_dir.join(format!("objdir-final-arch-{}", target.to_string()));
             std::fs::create_dir_all(&objdir).context("failed to create an objdir for the arch")?;
 
             let mut args: Vec<String> = vec![
-                "--target".into(),
-                architecture.to_string(),
+                format!("--target={}", target.to_string()),
                 format!("--prefix={}", cross_prefix()?.display()),
                 "--disable-nls".into(),
                 "--enable-languages=c,c++".into(),
@@ -98,20 +95,9 @@ pub fn install_gcc(
 
             run_configure_in(&objdir, args.as_ref())?;
 
-            let build_libstdcxx = match profile {
-                Profile::Freestanding => false,
-                _ => true,
-            };
-
-            if build_libstdcxx {
-                // hosted/newlib: build everything (gcc, libgcc, libstdc++)
-                run_make_in(&objdir, &["-j", jobs.as_str()])?;
-                run_make_in(&objdir, &["install", "-j", jobs.as_str()])?;
-            } else {
-                // pure freestanding: compiler already installed in Stage1; only build libgcc if desired
-                run_make_in(&objdir, &["all-target-libgcc", "-j", jobs.as_str()])?;
-                run_make_in(&objdir, &["install-target-libgcc", "-j", jobs.as_str()])?;
-            }
+            // hosted/newlib: build everything (gcc, libgcc, libstdc++)
+            run_make_in(&objdir, &["-j", jobs.as_str()])?;
+            run_make_in(&objdir, &["install", "-j", jobs.as_str()])?;
         }
     }
     Ok(())

@@ -10,7 +10,7 @@ use anyhow::{Context, Result};
 use crate::{
     download::{cache_dir, cross_prefix, download_and_decompress},
     make::{run_make_in, run_make_with_env_in},
-    profile::kernel_arch,
+    profile::{Arch, Target},
 };
 
 pub fn download_linux(version: impl AsRef<str>) -> Result<PathBuf> {
@@ -30,14 +30,14 @@ pub fn download_linux(version: impl AsRef<str>) -> Result<PathBuf> {
     Ok(linux_dir)
 }
 
-pub fn install_headers(arch: impl AsRef<str>, sysroot: impl AsRef<Path>) -> Result<()> {
+pub fn install_headers(target: &Target, sysroot: impl AsRef<Path>) -> Result<()> {
     println!("=> install linux headers");
     let kernel_src = download_linux("6.17.7")?;
 
     run_make_in(
         kernel_src,
         &[
-            format!("ARCH={}", kernel_arch(arch.as_ref())).as_str(),
+            format!("ARCH={}", target.arch.to_kernel_arch()).as_str(),
             "headers_install",
             format!("INSTALL_HDR_PATH={}/usr", sysroot.as_ref().display()).as_str(),
         ],
@@ -46,7 +46,7 @@ pub fn install_headers(arch: impl AsRef<str>, sysroot: impl AsRef<Path>) -> Resu
 }
 
 pub fn config(
-    arch_triple: impl AsRef<str>,
+    target: &Target,
     workdir: PathBuf,
     out: PathBuf,
     menuconfig: bool,
@@ -63,33 +63,38 @@ pub fn config(
         ),
     )];
 
-    let arch = kernel_arch(arch_triple.as_ref());
-
-    let defconfig = if arch == "x86" {
-        "i386_defconfig"
-    } else if arch == "mips" {
-        if arch_triple.as_ref().starts_with("mips64") {
-            "defconfig"
-        } else {
-            "malta_defconfig"
-        }
-    } else {
-        "defconfig"
+    //let defconfig = if arch == "x86" {
+    //    "i386_defconfig"
+    //} else if arch == "mips" {
+    //    if arch_triple.as_ref().starts_with("mips64") {
+    //        "defconfig"
+    //    } else {
+    //        "malta_defconfig"
+    //    }
+    //} else {
+    //    "defconfig"
+    //};
+    let defconfig = match target.arch {
+        Arch::I686 => "i386_defconfig",
+        _ => "defconfig",
     };
 
     if use_defconfig {
         run_make_with_env_in(
             &workdir,
-            &[format!("ARCH={}", arch).as_str(), "mrproper"],
+            &[
+                format!("ARCH={}", target.arch.to_kernel_arch()).as_str(),
+                "mrproper",
+            ],
             env.clone(),
         )?;
 
         run_make_with_env_in(
             &workdir,
             &[
-                format!("ARCH={}", arch).as_str(),
+                format!("ARCH={}", target.arch.to_kernel_arch()).as_str(),
                 format!("O={}", out.display()).as_str(),
-                format!("CROSS_COMPILE={}-", arch_triple.as_ref()).as_str(),
+                format!("CROSS_COMPILE={}-", target.to_string()).as_str(),
                 defconfig,
             ],
             env.clone(),
@@ -98,9 +103,9 @@ pub fn config(
     if menuconfig {
         Command::new("make")
             .args(&[
-                format!("ARCH={}", arch).as_str(),
+                format!("ARCH={}", target.arch.to_kernel_arch()).as_str(),
                 format!("O={}", out.display()).as_str(),
-                format!("CROSS_COMPILE={}-", arch_triple.as_ref()).as_str(),
+                format!("CROSS_COMPILE={}-", target.to_string()).as_str(),
                 "menuconfig",
             ])
             .current_dir(workdir)
@@ -112,7 +117,7 @@ pub fn config(
     Ok(())
 }
 
-pub fn build(arch: impl AsRef<str>, workdir: PathBuf, jobs: u64, out: PathBuf) -> Result<()> {
+pub fn build(target: &Target, workdir: PathBuf, jobs: u64, out: PathBuf) -> Result<()> {
     println!("=> kerenl build");
 
     let env: Vec<(String, String)> = vec![(
@@ -128,8 +133,8 @@ pub fn build(arch: impl AsRef<str>, workdir: PathBuf, jobs: u64, out: PathBuf) -
         &workdir,
         &[
             format!("O={}", out.display()).as_str(),
-            format!("ARCH={}", kernel_arch(arch.as_ref())).as_str(),
-            format!("CROSS_COMPILE={}-", arch.as_ref()).as_str(),
+            format!("ARCH={}", target.arch.to_kernel_arch()).as_str(),
+            format!("CROSS_COMPILE={}-", target.to_string()).as_str(),
             format!("-j{}", jobs).as_str(),
         ],
         env,
@@ -137,35 +142,34 @@ pub fn build(arch: impl AsRef<str>, workdir: PathBuf, jobs: u64, out: PathBuf) -
     Ok(())
 }
 
-pub fn build_out(version: impl AsRef<str>, architecture: impl AsRef<str>) -> Result<PathBuf> {
+pub fn build_out(version: impl AsRef<str>, target: &Target) -> Result<PathBuf> {
     Ok(cache_dir()?.join("linux-images").join(format!(
         "{}-{}",
-        architecture.as_ref(),
+        target.to_string(),
         version.as_ref()
     )))
 }
 
 pub fn get_image(
+    target: &Target,
     version: impl AsRef<str>,
-    architecture: impl AsRef<str>,
     jobs: u64,
     menuconfig: bool,
     defconfig: bool,
 ) -> Result<PathBuf> {
     println!("=> kernel image");
 
-    let out = build_out(&version, &architecture)?;
+    let out = build_out(&version, target)?;
     let boot_dir = out
         .join("arch")
-        .join(kernel_arch(architecture.as_ref()))
+        .join(target.arch.to_kernel_arch())
         .join("boot");
 
-    let arch = kernel_arch(architecture.as_ref());
-    let out_image = match arch {
-        "x86" => boot_dir.join("bzImage"),
-        "arm" => boot_dir.join("zImage"),
-        // for mips, the image is at the top level
-        "mips" | "powerpc" => boot_dir
+    let out_image = match target.arch {
+        Arch::X86_64 | Arch::I686 => boot_dir.join("bzImage"),
+        Arch::Armv7 | Arch::Aarch64 => boot_dir.join("zImage"),
+        // for mips and ppc, the image is at the top level
+        Arch::Ppc64Le | Arch::Ppc64 => boot_dir
             .parent()
             .unwrap()
             .parent()
@@ -177,13 +181,7 @@ pub fn get_image(
     };
 
     let workdir = download_linux(&version)?;
-    config(
-        &architecture,
-        workdir.clone(),
-        out.clone(),
-        menuconfig,
-        defconfig,
-    )?;
+    config(target, workdir.clone(), out.clone(), menuconfig, defconfig)?;
 
     let mut config_file = OpenOptions::new()
         .read(true)
@@ -201,7 +199,7 @@ pub fn get_image(
         return Ok(out_image);
     }
 
-    build(&architecture, workdir.clone(), jobs, out)?;
+    build(target, workdir.clone(), jobs, out)?;
 
     std::fs::copy(out_image, &toolup_image).context("failed to copy kernel image")?;
 

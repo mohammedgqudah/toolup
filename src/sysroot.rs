@@ -7,7 +7,7 @@ use crate::{
     gcc::{GccStage, Sysroot, install_gcc},
     glibc::install_glibc_sysroot,
     linux,
-    profile::Profile,
+    profile::Target,
 };
 
 /// Create and populate a sysroot for a target.
@@ -18,35 +18,20 @@ use crate::{
 ///   3. Builds a stage1 cross-compiler to configure and build glibc into the sysroot
 ///
 /// The caller must already have installed binutils.
-pub fn setup_sysroot(
-    architecture: impl AsRef<str>,
-    gcc_version: impl AsRef<str>,
-    profile: Profile,
-    jobs: u64,
-) -> Result<PathBuf> {
+pub fn setup_sysroot(target: &Target, gcc_version: impl AsRef<str>, jobs: u64) -> Result<PathBuf> {
     println!("=> setup sysroot");
 
-    let sysroot = cache_dir()?.join(format!(
-        "sysroot-{arch}-{profile:#?}",
-        arch = architecture.as_ref(),
-        profile = profile
-    ));
+    let sysroot = cache_dir()?.join(format!("sysroot-{}", target.to_string(),));
     std::fs::create_dir_all(&sysroot)?;
     std::fs::create_dir_all(sysroot.join("usr").join("include"))?;
     std::fs::create_dir_all(sysroot.join("usr").join("lib"))?;
 
     // 1. install linux headers
-    linux::install_headers(architecture.as_ref(), &sysroot)?;
+    linux::install_headers(target, &sysroot)?;
 
-    install_gcc(
-        architecture.as_ref(),
-        gcc_version,
-        profile,
-        jobs,
-        GccStage::Stage1,
-    )?;
+    install_gcc(target, gcc_version, jobs, GccStage::Stage1)?;
 
-    install_glibc_sysroot(Sysroot(sysroot.clone()), profile, architecture)?;
+    install_glibc_sysroot(target, Sysroot(sysroot.clone()))?;
 
     Ok(sysroot)
 }

@@ -1,94 +1,331 @@
-#[derive(Debug, Clone, Copy)]
-pub enum Profile {
-    // No libc
-    Freestanding,
-    // Bare metal with newlib
-    Newlib,
-    // Linux with glibc (*-linux-gnu*)
-    LinuxGlibc,
-    // Linux with musl (*-linux-musl*)
-    LinuxMusl,
-    // Windows (*-w64-mingw32)
-    MingwW64,
-    // sdk/sysroot provided
-    ExternalSysroot,
+use anyhow::{Result, anyhow};
+use std::str::FromStr;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Arch {
+    X86_64,
+    I686,
+    Aarch64,
+    Armv7,
+    Riscv64,
+    Ppc64Le,
+    Ppc64,
+    Avr,
 }
 
-// TODO: this auto detection was an AI auto-complete, review later.
-pub fn select_profile<S: AsRef<str>>(arch: S, libc: Option<S>) -> Profile {
-    // If user explicitly requests a libc:
-    if let Some(l) = libc {
-        match l.as_ref() {
-            "newlib" => return Profile::Newlib,
-            "glibc" => return Profile::LinuxGlibc,
-            "musl" => return Profile::LinuxMusl,
-            "none" => return Profile::Freestanding,
-            _ => {} // fallthrough to auto-detect
+impl ToString for Arch {
+    fn to_string(&self) -> String {
+        match self {
+            Arch::X86_64 => "x86_64".into(),
+            Arch::I686 => "i686".into(),
+            Arch::Aarch64 => "aarch64".into(),
+            Arch::Armv7 => "armv7".into(),
+            Arch::Riscv64 => "riscv64".into(),
+            Arch::Ppc64Le => "ppc64le".into(),
+            Arch::Ppc64 => "ppc64".into(),
+            Arch::Avr => "avr".into(),
         }
     }
-
-    // Triple-based automatic detection:
-    if arch.as_ref().contains("w64-mingw32") {
-        return Profile::MingwW64;
-    }
-
-    if arch.as_ref().contains("linux-musl") {
-        return Profile::LinuxMusl;
-    }
-
-    if arch.as_ref().contains("linux-gnu") || arch.as_ref().contains("gnueabihf") {
-        return Profile::LinuxGlibc;
-    }
-
-    // Bare-metal targets typically end in -elf, -none-*, -eabi
-    let bare = ["-elf", "-eabi", "-none", "-none-eabi", "-unknown-elf"];
-
-    if bare.iter().any(|pat| arch.as_ref().contains(pat)) {
-        // If user didn't explicitly request newlib, default = freestanding
-        return Profile::Freestanding;
-    }
-
-    // Fallback: require external sysroot
-    Profile::ExternalSysroot
 }
 
-pub fn kernel_arch<'a>(triple: &'a str) -> &'a str {
-    let t = triple.to_lowercase();
+impl Arch {
+    /// Return an architecture string to be used the `ARCH` parameter when building the kernel.
+    pub fn to_kernel_arch(self) -> &'static str {
+        match self {
+            Arch::X86_64 => "x86",
+            Arch::I686 => "x86",
+            Arch::Aarch64 => "arm64",
+            Arch::Armv7 => "arm",
+            Arch::Riscv64 => "riscv",
+            Arch::Ppc64Le => "powerpc",
+            Arch::Ppc64 => "powerpc",
+            Arch::Avr => unreachable!(),
+        }
+    }
+}
 
-    if t.contains("x86_64") {
-        return "x86";
-    }
-    if t.contains("i386") || t.contains("i486") || t.contains("i586") || t.contains("i686") {
-        return "x86";
-    }
-    if t.contains("aarch64") {
-        return "arm64";
-    }
-    if t.contains("arm") {
-        return "arm";
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Os {
+    None, // bare-metal
+    Linux,
+}
 
-    if t.contains("riscv") {
-        return "riscv";
+impl ToString for Os {
+    fn to_string(&self) -> String {
+        match self {
+            Os::None => "none".into(),
+            Os::Linux => "linux".into(),
+        }
     }
+}
 
-    if t.contains("mips") {
-        return "mips";
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Abi {
+    Gnu,
+    Musl,
+    Msvc,
+    Eabi,
+    Eabihf,
+    GnuEabi,
+    GnuEabihf,
+    Elf,
+}
+
+impl ToString for Abi {
+    fn to_string(&self) -> String {
+        match self {
+            Abi::Gnu => "gnu".into(),
+            Abi::Musl => "musl".into(),
+            Abi::Msvc => "msvc".into(),
+            Abi::Eabi => "eabi".into(),
+            Abi::Eabihf => "eabihf".into(),
+            Abi::GnuEabi => "gnueabi".into(),
+            Abi::GnuEabihf => "gnueabihf".into(),
+            Abi::Elf => "elf".into(),
+        }
     }
+}
 
-    if t.contains("powerpc") || t.contains("ppc") {
-        return "powerpc";
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Vendor {
+    Unknown,
+    Pc,
+    //Apple,
+}
+
+impl ToString for Vendor {
+    fn to_string(&self) -> String {
+        match self {
+            Vendor::Unknown => "unknown".into(),
+            Vendor::Pc => "pc".into(),
+        }
     }
+}
 
-    if t.contains("sparc") {
-        return "sparc";
+impl FromStr for Arch {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "x86_64" => Ok(Arch::X86_64),
+            "i686" => Ok(Arch::I686),
+            "aarch64" => Ok(Arch::Aarch64),
+            "armv7" => Ok(Arch::Armv7),
+            "riscv64" => Ok(Arch::Riscv64),
+            "ppc64le" => Ok(Arch::Ppc64Le),
+            "ppc64" => Ok(Arch::Ppc64),
+            "avr" => Ok(Arch::Avr),
+            _ => Err(anyhow!("unsupported architecture")),
+        }
     }
-
-    if t.contains("sh4") || t.contains("sh2") || t.contains("sh") {
-        return "sh";
+}
+impl FromStr for Abi {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "elf" => Ok(Abi::Elf),
+            "gnu" => Ok(Abi::Gnu),
+            "musl" => Ok(Abi::Musl),
+            "msvc" => Ok(Abi::Msvc),
+            "eabi" => Ok(Abi::Eabi),
+            "gnueabi" => Ok(Abi::GnuEabi),
+            "eabihf" => Ok(Abi::Eabihf),
+            "gnueabihf" => Ok(Abi::GnuEabihf),
+            _ => Err(anyhow!("unsupported abi")),
+        }
     }
+}
 
-    // fallback: assume same as LLVM/GCC arch name segment
-    // (safe enough for weird targets; kernel may still not support it)
-    triple.split('-').next().unwrap_or(triple)
+impl FromStr for Vendor {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "unknown" => Ok(Vendor::Unknown),
+            "pc" => Ok(Vendor::Pc),
+            _ => Err(anyhow!("unsupported vendor")),
+        }
+    }
+}
+
+impl FromStr for Os {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "none" => Ok(Os::None),
+            "linux" => Ok(Os::Linux),
+            //"windows" => Ok(Os::Windows),
+            //"darwin" => Ok(Os::Darwin),
+            //"freebsd" => Ok(Os::FreeBsd),
+            //"netbsd" => Ok(Os::NetBsd),
+            //"openbsd" => Ok(Os::OpenBsd),
+            _ => Err(anyhow!("unsupported os")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Target {
+    pub arch: Arch,
+    pub vendor: Vendor,
+    pub os: Os,
+    pub abi: Abi,
+}
+
+impl ToString for Target {
+    fn to_string(&self) -> String {
+        match self {
+            // GNU tools will not understand the full format for freestanding targets.
+            Target {
+                arch,
+                vendor: Vendor::Unknown,
+                os: Os::None,
+                abi: Abi::Elf,
+            } => {
+                format!("{}-elf", arch.to_string())
+            }
+            Target {
+                arch,
+                vendor,
+                os,
+                abi,
+            } => {
+                format!(
+                    "{arch}-{vendor}-{os}-{abi}",
+                    arch = arch.to_string(),
+                    vendor = vendor.to_string(),
+                    os = os.to_string(),
+                    abi = abi.to_string()
+                )
+            }
+        }
+    }
+}
+
+impl FromStr for Target {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        let parts: Vec<&str> = s.split('-').collect();
+
+        match parts.as_slice() {
+            [arch, "elf"] => Ok(Target {
+                arch: Arch::from_str(arch)?,
+                vendor: Vendor::Unknown,
+                os: Os::None,
+                abi: Abi::Elf,
+            }),
+            // GNU tools will not understand the full format for freestanding targets.
+            [arch, "unknown", "none", "elf"] => Err(anyhow!(
+                "use <arch>-elf for freestanding targets. use: {}-elf",
+                arch
+            )),
+            [arch, vendor, "none", abi] => {
+                let abi = Abi::from_str(abi)?;
+                match abi {
+                    Abi::Eabi | Abi::Eabihf | Abi::Elf => {}
+                    _ => {
+                        return Err(anyhow!(
+                            "unsupported abi `{}` for os `none`",
+                            abi.to_string(),
+                        ));
+                    }
+                };
+                Ok(Target {
+                    arch: Arch::from_str(arch)?,
+                    vendor: Vendor::from_str(vendor)?,
+                    os: Os::None,
+                    abi,
+                })
+            }
+            // 4 parts: arch-vendor-os-abi
+            [arch, vendor, os, abi] => {
+                //
+                Ok(Target {
+                    arch: Arch::from_str(arch)?,
+                    vendor: Vendor::from_str(vendor)?,
+                    os: Os::from_str(os)?,
+                    abi: Abi::from_str(abi)?,
+                })
+            }
+            _ => Err(anyhow!(
+                "invalid target format, use the canonical format arch-vendor-os-abi"
+            )),
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::str::FromStr;
+
+    use super::{Abi, Arch, Os, Target, Vendor};
+    use anyhow::Result;
+
+    #[test]
+    pub fn test() -> Result<()> {
+        assert_eq!(
+            Target::from_str("x86_64-unknown-none-elf")?,
+            Target {
+                arch: Arch::X86_64,
+                vendor: Vendor::Unknown,
+                os: Os::None,
+                abi: Abi::Elf
+            }
+        );
+        assert_eq!(
+            Target::from_str("armv7-unknown-linux-gnueabi")?,
+            Target {
+                arch: Arch::Armv7,
+                vendor: Vendor::Unknown,
+                os: Os::Linux,
+                abi: Abi::GnuEabi
+            }
+        );
+        assert_eq!(
+            Target::from_str("armv7-pc-linux-gnueabi")?,
+            Target {
+                arch: Arch::Armv7,
+                vendor: Vendor::Pc,
+                os: Os::Linux,
+                abi: Abi::GnuEabi
+            }
+        );
+        assert_eq!(
+            Target::from_str("i686-unknown-none-gnu")?,
+            Target {
+                arch: Arch::I686,
+                vendor: Vendor::Unknown,
+                os: Os::None,
+                abi: Abi::Gnu
+            }
+        );
+        assert_eq!(
+            Target::from_str("i686-unknown-linux-gnu")?,
+            Target {
+                arch: Arch::I686,
+                vendor: Vendor::Unknown,
+                os: Os::Linux,
+                abi: Abi::Gnu
+            }
+        );
+        assert_eq!(
+            Target::from_str("ppc64-unknown-linux-gnu")?,
+            Target {
+                arch: Arch::Ppc64,
+                vendor: Vendor::Unknown,
+                os: Os::Linux,
+                abi: Abi::Gnu
+            }
+        );
+        assert_eq!(
+            Target::from_str("ppc64le-unknown-linux-gnu")?,
+            Target {
+                arch: Arch::Ppc64Le,
+                vendor: Vendor::Unknown,
+                os: Os::Linux,
+                abi: Abi::Gnu
+            }
+        );
+
+        Ok(())
+    }
 }

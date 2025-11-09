@@ -3,52 +3,36 @@ use std::{
     process::{Command, Stdio},
 };
 
-use anyhow::{Result, bail};
+use anyhow::Result;
 
-pub fn start_vm(
-    architecture: impl AsRef<str>,
-    kernel: impl AsRef<Path>,
-    initrd: impl AsRef<Path>,
-) -> Result<()> {
-    let arch = architecture.as_ref().split("-").next().unwrap();
+use crate::profile::{Arch, Target};
 
+pub fn start_vm(target: &Target, kernel: impl AsRef<Path>, initrd: impl AsRef<Path>) -> Result<()> {
     let kernel = kernel.as_ref();
     let initrd = initrd.as_ref();
 
-    let (qemu, extra, console) = match arch {
-        "x86_64" => ("qemu-system-x86_64", vec![], "ttyS0"),
-        "i386" | "i686" => ("qemu-system-i386", vec![], "ttyS0"),
-        "riscv64" => (
+    let (qemu, extra, console) = match target.arch {
+        Arch::X86_64 => ("qemu-system-x86_64", vec![], "ttyS0"),
+        Arch::I686 => ("qemu-system-i386", vec![], "ttyS0"),
+        Arch::Riscv64 => (
             "qemu-system-riscv64",
             vec!["-machine", "virt", "-bios", "default"],
             "ttyS0",
         ),
-        "aarch64" => (
+        Arch::Aarch64 => (
             "qemu-system-aarch64",
             vec!["-M", "virt", "-cpu", "cortex-a57"],
             "ttyAMA0",
         ),
-        "powerpc64" => (
-            "qemu-system-ppc64",
-            vec!["-machine", "pseries", "-bios", "default"],
-            "hvc0",
-        ),
-        "arm" => (
+        Arch::Ppc64 => ("qemu-system-ppc64", vec!["-machine", "pseries"], "hvc0"),
+        Arch::Ppc64Le => ("qemu-system-ppc64le", vec!["-machine", "pseries"], "hvc0"),
+        Arch::Armv7 => (
             "qemu-system-arm",
             vec!["-M", "virt", "-cpu", "cortex-a15"],
             "ttyAMA0",
         ),
-        "mips" => (
-            "qemu-system-mipsel",
-            vec!["-M", "malta", "-nographic"],
-            "ttyS0",
-        ),
-        "mips64" => (
-            "qemu-system-mips64",
-            vec!["-M", "malta", "-nographic"],
-            "ttyS0",
-        ),
-        _ => bail!("unsupported arch: {arch}"),
+
+        _ => unreachable!(),
     };
 
     let append = format!("console={console},115200 rdinit=/init earlycon");

@@ -6,7 +6,7 @@ use crate::{
     download::{cross_prefix, download_and_decompress},
     gcc::Sysroot,
     make::{run_configure_with_env_in, run_make_with_env_in},
-    profile::Profile,
+    profile::Target,
 };
 
 pub fn download_glibc(version: impl AsRef<str>) -> Result<PathBuf> {
@@ -24,20 +24,11 @@ pub fn download_glibc(version: impl AsRef<str>) -> Result<PathBuf> {
     Ok(glibc_dir)
 }
 
-pub fn install_glibc_sysroot(
-    sysroot: Sysroot,
-    profile: Profile,
-    architecture: impl AsRef<str>,
-) -> Result<()> {
+pub fn install_glibc_sysroot(target: &Target, sysroot: Sysroot) -> Result<()> {
     println!("=> install glibc");
 
-    let architecture = architecture.as_ref();
     let glibc_dir = download_glibc("2.42")?;
-    let objdir = glibc_dir.join(format!(
-        "objdir-arch-{arch}-{profile:#?}",
-        arch = architecture,
-        profile = profile
-    ));
+    let objdir = glibc_dir.join(format!("objdir-arch-{}", target.to_string()));
     std::fs::create_dir_all(&objdir)?;
 
     let stdout = Command::new(glibc_dir.join("scripts").join("config.guess"))
@@ -45,36 +36,27 @@ pub fn install_glibc_sysroot(
         .stdout;
     let guess = String::from_utf8(stdout)?;
 
-    // TODO: this is an ugly workaround
-    let libdir = if architecture.contains("x86_64")
-        || architecture.contains("ppc64")
-        || architecture.contains("s390x")
-        || architecture.contains("mips64")
-    {
-        "/usr/lib64"
-    } else {
-        "/usr/lib"
-    };
-
     let args = vec![
-        format!("--host={}", architecture),
+        format!("--host={}", target.to_string()),
         format!("--build={}", guess.trim()),
         "--prefix=/usr".into(),
         format!("--with-headers={}/usr/include", sysroot.display()),
+        format!("--with-sysroot={}", sysroot.display()),
         "--disable-werror".into(),
-        format!("--libdir={}", libdir),
     ];
+    let prefix = target.to_string();
+
     let env: Vec<(String, String)> = vec![
         ("BUILD_CC".into(), "gcc".into()),
         ("BUILD_CXX".into(), "g++".into()),
         ("BUILD_AR".into(), "ar".into()),
         ("BUILD_RANLIB".into(), "ranlib".into()),
-        ("CC".into(), format!("{architecture}-gcc")),
-        ("CXX".into(), format!("{architecture}-g++")),
-        ("AR".into(), format!("{architecture}-ar")),
-        ("RANLIB".into(), format!("{architecture}-ranlib")),
-        ("LD".into(), format!("{architecture}-ld")),
-        ("READELF".into(), format!("{architecture}-readelf")),
+        ("CC".into(), format!("{prefix}-gcc")),
+        ("CXX".into(), format!("{prefix}-g++")),
+        ("AR".into(), format!("{prefix}-ar")),
+        ("RANLIB".into(), format!("{prefix}-ranlib")),
+        ("LD".into(), format!("{prefix}-ld")),
+        ("READELF".into(), format!("{prefix}-readelf")),
         (
             "PATH".into(),
             format!(

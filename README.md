@@ -11,8 +11,11 @@ it manages:
 ## Usage Examples
 ```bash
 toolup toolchain avr-elf
-toolup toolchain riscv64-linux-gnu
 toolup toolchain x86_64-elf
+toolup toolchain i686-elf
+toolup toolchain riscv64-unknown-linux-gnu
+toolup toolchain armv7-unknown-none-eabihf
+
 ```
 
 ```bash

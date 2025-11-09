@@ -3,9 +3,11 @@ use anyhow::{Context, Result};
 use crate::{
     download::{cross_prefix, download_and_decompress},
     make::{run_configure_in, run_make_in},
+    profile::Target,
 };
 
-pub fn install_binutils(architecture: String, jobs: u64) -> Result<()> {
+/// Download and build binutils.
+pub fn install_binutils(target: &Target, jobs: u64) -> Result<()> {
     println!("=> install binutils");
 
     let binutils_dir = download_and_decompress(
@@ -15,7 +17,7 @@ pub fn install_binutils(architecture: String, jobs: u64) -> Result<()> {
     )
     .context("failed to download binutils")?;
 
-    let arch_dir = binutils_dir.join(format!("objdir-arch-{}", architecture));
+    let arch_dir = binutils_dir.join(format!("objdir-arch-{}", target.to_string()));
 
     std::fs::create_dir_all(&arch_dir).context("failed to create an objdir for the arch")?;
 
@@ -23,7 +25,7 @@ pub fn install_binutils(architecture: String, jobs: u64) -> Result<()> {
         &arch_dir,
         &[
             "--target",
-            architecture.as_str(),
+            target.to_string().as_str(),
             "--prefix",
             cross_prefix()?.to_str().unwrap(),
             "--disable-nls",

@@ -8,6 +8,7 @@ use crate::cpio::pack_rootfs;
 use crate::download::cache_dir;
 use crate::download::cross_prefix;
 use crate::make::run_make_with_env_in;
+use crate::profile::Target;
 
 pub fn download_busybox() -> Result<PathBuf> {
     // TODO: decompress bz2 https://busybox.net/downloads/busybox-1.36.1.tar.bz2
@@ -15,10 +16,10 @@ pub fn download_busybox() -> Result<PathBuf> {
 }
 
 /// Returns rootfs image
-pub fn build_rootfs(architecture: impl AsRef<str>) -> Result<PathBuf> {
+pub fn build_rootfs(target: &Target) -> Result<PathBuf> {
     let busybox_dir = download_busybox()?;
-    let rootfs_dir = cache_dir()?.join(format!("rootfs-{}", architecture.as_ref()));
-    let cpio_gz = cache_dir()?.join(format!("rootfs-{}.cpio.gz", architecture.as_ref()));
+    let rootfs_dir = cache_dir()?.join(format!("rootfs-{}", target.to_string()));
+    let cpio_gz = cache_dir()?.join(format!("rootfs-{}.cpio.gz", target.to_string()));
     if cpio_gz.exists() {
         return Ok(cpio_gz);
     }
@@ -58,7 +59,7 @@ exec setsid cttyhack /bin/sh
     run_make_with_env_in(
         &busybox_dir,
         &[
-            format!("CROSS_COMPILE={}-", architecture.as_ref()).as_str(),
+            format!("CROSS_COMPILE={}-", target.to_string()).as_str(),
             "defconfig",
         ],
         env.clone(),
@@ -78,7 +79,7 @@ exec setsid cttyhack /bin/sh
     run_make_with_env_in(
         &busybox_dir,
         &[
-            format!("CROSS_COMPILE={}-", architecture.as_ref()).as_str(),
+            format!("CROSS_COMPILE={}-", target.to_string()).as_str(),
             format!("CONFIG_PREFIX={}", &rootfs_dir.display()).as_str(),
             "install",
         ],
