@@ -79,7 +79,13 @@ pub fn config(
         _ => "defconfig",
     };
 
-    if use_defconfig {
+    let force_defconfig = if out.join(".config").exists() {
+        false
+    } else {
+        true
+    };
+
+    if use_defconfig || force_defconfig {
         run_make_with_env_in(
             &workdir,
             &[

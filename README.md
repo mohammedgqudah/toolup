@@ -15,12 +15,14 @@ toolup toolchain x86_64-elf
 toolup toolchain i686-elf
 toolup toolchain riscv64-unknown-linux-gnu
 toolup toolchain armv7-unknown-none-eabihf
-
 ```
 
 ```bash
 # quickly build a kernel image and a minimal rootfs and start qemu-system-<arch> in the terminal
-toolup linux --linux 6.16 -a riscv64-linux-gnu
+toolup linux 6.16 -t riscv64-unknown-linux-gnu
+
+# -m will open the kernel menuconfig, since this is `ppc64-`, we can configure a big endian kernel
+toolup linux 6.17 -t ppc64-unknown-linux-gnu -j20 -m
 ```
 
 ## Screenshots
