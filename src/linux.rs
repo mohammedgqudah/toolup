@@ -8,7 +8,7 @@ use std::{
 use anyhow::{Context, Result};
 
 use crate::{
-    download::{cache_dir, cross_prefix, download_and_decompress},
+    download::{cross_prefix, download_and_decompress, linux_images_dir},
     make::{run_make_in, run_make_with_env_in},
     profile::{Arch, Target},
 };
@@ -149,11 +149,7 @@ pub fn build(target: &Target, workdir: PathBuf, jobs: u64, out: PathBuf) -> Resu
 }
 
 pub fn build_out(version: impl AsRef<str>, target: &Target) -> Result<PathBuf> {
-    Ok(cache_dir()?.join("linux-images").join(format!(
-        "{}-{}",
-        target.to_string(),
-        version.as_ref()
-    )))
+    Ok(linux_images_dir()?.join(format!("{}-{}", target.to_string(), version.as_ref())))
 }
 
 pub fn get_image(

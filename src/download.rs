@@ -45,6 +45,22 @@ pub fn archives_dir() -> Result<PathBuf> {
     Ok(dir)
 }
 
+pub fn sysroots_dir() -> Result<PathBuf> {
+    let dir = PathBuf::from(std::env::var("HOME").context("reading $HOME")?)
+        .join(".toolup")
+        .join("sysroot");
+    std::fs::create_dir_all(&dir)?;
+    Ok(dir)
+}
+
+pub fn linux_images_dir() -> Result<PathBuf> {
+    let dir = PathBuf::from(std::env::var("HOME").context("reading $HOME")?)
+        .join(".toolup")
+        .join("linux-images");
+    std::fs::create_dir_all(&dir)?;
+    Ok(dir)
+}
+
 /// Download an archive.
 pub fn download_archive<S: AsRef<str>>(url: S, use_cache: bool) -> Result<DownloadResult> {
     let filename = url.as_ref().split("/").last().context(format!(

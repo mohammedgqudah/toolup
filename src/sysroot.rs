@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 
 use crate::{
-    download::cache_dir,
+    download::sysroots_dir,
     gcc::{GccStage, Sysroot, install_gcc},
     glibc::install_glibc_sysroot,
     linux,
@@ -21,7 +21,7 @@ use crate::{
 pub fn setup_sysroot(target: &Target, gcc_version: impl AsRef<str>, jobs: u64) -> Result<PathBuf> {
     println!("=> setup sysroot");
 
-    let sysroot = cache_dir()?.join(format!("sysroot-{}", target.to_string(),));
+    let sysroot = sysroots_dir()?.join(format!("sysroot-{}", target.to_string()));
     std::fs::create_dir_all(&sysroot)?;
     std::fs::create_dir_all(sysroot.join("usr").join("include"))?;
     std::fs::create_dir_all(sysroot.join("usr").join("lib"))?;
