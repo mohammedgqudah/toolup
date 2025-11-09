@@ -45,9 +45,11 @@ pub fn install_glibc_sysroot(
         .stdout;
     let guess = String::from_utf8(stdout)?;
 
+    // TODO: this is an ugly workaround
     let libdir = if architecture.contains("x86_64")
         || architecture.contains("ppc64")
         || architecture.contains("s390x")
+        || architecture.contains("mips64")
     {
         "/usr/lib64"
     } else {

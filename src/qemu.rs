@@ -28,10 +28,25 @@ pub fn start_vm(
             vec!["-M", "virt", "-cpu", "cortex-a57"],
             "ttyAMA0",
         ),
+        "powerpc64" => (
+            "qemu-system-ppc64",
+            vec!["-machine", "pseries", "-bios", "default"],
+            "hvc0",
+        ),
         "arm" => (
             "qemu-system-arm",
             vec!["-M", "virt", "-cpu", "cortex-a15"],
             "ttyAMA0",
+        ),
+        "mips" => (
+            "qemu-system-mipsel",
+            vec!["-M", "malta", "-nographic"],
+            "ttyS0",
+        ),
+        "mips64" => (
+            "qemu-system-mips64",
+            vec!["-M", "malta", "-nographic"],
+            "ttyS0",
         ),
         _ => bail!("unsupported arch: {arch}"),
     };
@@ -58,9 +73,14 @@ pub fn start_vm(
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
 
-    let status = cmd.status()?;
-    if !status.success() {
-        bail!("QEMU exited with status {status}");
+    print!("{} ", qemu);
+    for arg in cmd.get_args() {
+        print!("{} ", arg.to_str().unwrap());
     }
+
+    //let status = cmd.status()?;
+    //if !status.success() {
+    //    bail!("QEMU exited with status {status}");
+    //}
     Ok(())
 }

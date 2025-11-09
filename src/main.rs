@@ -47,6 +47,10 @@ enum Commands {
         architecture: String,
         #[arg(short, long, default_value_t = 10)]
         jobs: u64,
+        #[arg(short, long, default_value_t = false)]
+        menuconfig: bool,
+        #[arg(short, long, default_value_t = false)]
+        defconfig: bool,
     },
 }
 
@@ -110,6 +114,8 @@ fn main() -> Result<()> {
             version,
             architecture,
             jobs,
+            menuconfig,
+            defconfig,
         } => {
             install_toolchain(
                 architecture.clone(),
@@ -118,7 +124,8 @@ fn main() -> Result<()> {
                 jobs,
                 false,
             )?;
-            let kernel_image = linux::get_image(&version, &architecture, jobs)?;
+            let kernel_image =
+                linux::get_image(&version, &architecture, jobs, menuconfig, defconfig)?;
             let rootfs = busybox::build_rootfs(&architecture)?;
             start_vm(architecture, kernel_image, rootfs)?;
         }

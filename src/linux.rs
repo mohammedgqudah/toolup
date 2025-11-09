@@ -1,4 +1,9 @@
-use std::path::{Path, PathBuf};
+use std::{
+    fs::OpenOptions,
+    io::Read,
+    path::{Path, PathBuf},
+    process::{Command, Stdio},
+};
 
 use anyhow::{Context, Result};
 
@@ -40,7 +45,13 @@ pub fn install_headers(arch: impl AsRef<str>, sysroot: impl AsRef<Path>) -> Resu
     Ok(())
 }
 
-pub fn defconfig(arch_triple: impl AsRef<str>, workdir: PathBuf, out: PathBuf) -> Result<()> {
+pub fn config(
+    arch_triple: impl AsRef<str>,
+    workdir: PathBuf,
+    out: PathBuf,
+    menuconfig: bool,
+    use_defconfig: bool,
+) -> Result<()> {
     println!("=> kernel defconfig");
 
     let env: Vec<(String, String)> = vec![(
@@ -56,26 +67,48 @@ pub fn defconfig(arch_triple: impl AsRef<str>, workdir: PathBuf, out: PathBuf) -
 
     let defconfig = if arch == "x86" {
         "i386_defconfig"
+    } else if arch == "mips" {
+        if arch_triple.as_ref().starts_with("mips64") {
+            "defconfig"
+        } else {
+            "malta_defconfig"
+        }
     } else {
         "defconfig"
     };
 
-    run_make_with_env_in(
-        &workdir,
-        &[format!("ARCH={}", arch).as_str(), "mrproper"],
-        env.clone(),
-    )?;
+    if use_defconfig {
+        run_make_with_env_in(
+            &workdir,
+            &[format!("ARCH={}", arch).as_str(), "mrproper"],
+            env.clone(),
+        )?;
 
-    run_make_with_env_in(
-        workdir,
-        &[
-            format!("ARCH={}", arch).as_str(),
-            format!("O={}", out.display()).as_str(),
-            format!("CROSS_COMPILE={}-", arch_triple.as_ref()).as_str(),
-            defconfig,
-        ],
-        env,
-    )?;
+        run_make_with_env_in(
+            &workdir,
+            &[
+                format!("ARCH={}", arch).as_str(),
+                format!("O={}", out.display()).as_str(),
+                format!("CROSS_COMPILE={}-", arch_triple.as_ref()).as_str(),
+                defconfig,
+            ],
+            env.clone(),
+        )?;
+    }
+    if menuconfig {
+        Command::new("make")
+            .args(&[
+                format!("ARCH={}", arch).as_str(),
+                format!("O={}", out.display()).as_str(),
+                format!("CROSS_COMPILE={}-", arch_triple.as_ref()).as_str(),
+                "menuconfig",
+            ])
+            .current_dir(workdir)
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .status()
+            .context("running menuconfig")?;
+    }
     Ok(())
 }
 
@@ -116,29 +149,61 @@ pub fn get_image(
     version: impl AsRef<str>,
     architecture: impl AsRef<str>,
     jobs: u64,
+    menuconfig: bool,
+    defconfig: bool,
 ) -> Result<PathBuf> {
     println!("=> kernel image");
 
     let out = build_out(&version, &architecture)?;
-    let image = out
+    let boot_dir = out
         .join("arch")
         .join(kernel_arch(architecture.as_ref()))
         .join("boot");
 
     let arch = kernel_arch(architecture.as_ref());
-    let image = match arch {
-        "x86" => image.join("bzImage"),
-        "arm" => image.join("zImage"),
-        _ => image.join("Image"),
+    let out_image = match arch {
+        "x86" => boot_dir.join("bzImage"),
+        "arm" => boot_dir.join("zImage"),
+        // for mips, the image is at the top level
+        "mips" | "powerpc" => boot_dir
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("vmlinux"),
+        _ => boot_dir.join("Image"),
     };
 
-    if image.exists() {
-        return Ok(image);
+    let workdir = download_linux(&version)?;
+    config(
+        &architecture,
+        workdir.clone(),
+        out.clone(),
+        menuconfig,
+        defconfig,
+    )?;
+
+    let mut config_file = OpenOptions::new()
+        .read(true)
+        .open(out.join(".config"))
+        .context("failed to open config file")?;
+    let mut config_buf: Vec<u8> = Vec::new();
+    config_file.read_to_end(&mut config_buf)?;
+
+    let config_hash = blake3::hash(config_buf.as_slice()).to_hex();
+
+    let mut toolup_image = out_image.clone();
+    toolup_image.add_extension(config_hash.to_string());
+
+    if toolup_image.exists() {
+        return Ok(out_image);
     }
 
-    let workdir = download_linux(&version)?;
-    defconfig(&architecture, workdir.clone(), out.clone())?;
     build(&architecture, workdir.clone(), jobs, out)?;
 
-    Ok(image)
+    std::fs::copy(out_image, &toolup_image).context("failed to copy kernel image")?;
+
+    Ok(toolup_image)
 }
