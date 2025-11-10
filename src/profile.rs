@@ -11,6 +11,7 @@ pub enum Arch {
     Ppc64Le,
     Ppc64,
     Avr,
+    Bpf,
 }
 
 impl ToString for Arch {
@@ -24,6 +25,7 @@ impl ToString for Arch {
             Arch::Ppc64Le => "ppc64le".into(),
             Arch::Ppc64 => "ppc64".into(),
             Arch::Avr => "avr".into(),
+            Arch::Bpf => "bpf".into(),
         }
     }
 }
@@ -40,6 +42,7 @@ impl Arch {
             Arch::Ppc64Le => "powerpc",
             Arch::Ppc64 => "powerpc",
             Arch::Avr => unreachable!(),
+            Arch::Bpf => unreachable!(),
         }
     }
 }
@@ -114,6 +117,7 @@ impl FromStr for Arch {
             "ppc64le" => Ok(Arch::Ppc64Le),
             "ppc64" => Ok(Arch::Ppc64),
             "avr" => Ok(Arch::Avr),
+            "bpf" => Ok(Arch::Bpf),
             _ => Err(anyhow!("unsupported architecture")),
         }
     }
@@ -173,6 +177,9 @@ pub struct Target {
 impl ToString for Target {
     fn to_string(&self) -> String {
         match self {
+            Target {
+                arch: Arch::Bpf, ..
+            } => "bpf-unknown-none".into(),
             // GNU tools will not understand the full format for freestanding targets.
             Target {
                 arch,
@@ -207,6 +214,18 @@ impl FromStr for Target {
         let parts: Vec<&str> = s.split('-').collect();
 
         match parts.as_slice() {
+            ["bpf", ..] => {
+                if s != "bpf-unknown-none" {
+                    Err(anyhow!("use `bpf-unknown-none`",))
+                } else {
+                    Ok(Target {
+                        arch: Arch::Bpf,
+                        vendor: Vendor::Unknown,
+                        os: Os::None,
+                        abi: Abi::Elf,
+                    })
+                }
+            }
             [arch, "elf"] => Ok(Target {
                 arch: Arch::from_str(arch)?,
                 vendor: Vendor::Unknown,
