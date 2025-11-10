@@ -15,6 +15,8 @@ toolup toolchain x86_64-elf
 toolup toolchain i686-elf
 toolup toolchain riscv64-unknown-linux-gnu
 toolup toolchain armv7-unknown-none-eabihf
+toolup toolchain bpf-unknown-none
+toolup toolchain aarch64-unknown-none-gnu
 ```
 
 ```bash
@@ -23,6 +25,11 @@ toolup linux 6.16 -t riscv64-unknown-linux-gnu
 
 # -m will open the kernel menuconfig, since this is `ppc64-`, we can configure a big endian kernel
 toolup linux 6.17 -t ppc64-unknown-linux-gnu -j20 -m
+```
+
+```
+aarch64-unknown-linux-gnu-gcc test.c -o test
+qemu-aarch64 -L `aarch64-unknown-linux-gnu-gcc -print-sysroot` ./test
 ```
 
 ## Screenshots
