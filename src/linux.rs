@@ -198,7 +198,7 @@ pub fn get_image(
     toolup_image.add_extension(config_hash.to_string());
 
     if toolup_image.exists() {
-        return Ok(out_image);
+        return Ok(toolup_image);
     }
 
     build(target, workdir.clone(), jobs, out)?;
