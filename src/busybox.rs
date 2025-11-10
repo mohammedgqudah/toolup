@@ -1,12 +1,12 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 use std::{fs::OpenOptions, path::PathBuf};
 
 use crate::cpio::pack_rootfs;
-use crate::download::cache_dir;
 use crate::download::cross_prefix;
+use crate::download::{cache_dir, sysroots_dir};
 use crate::make::run_make_with_env_in;
 use crate::profile::Target;
 
@@ -86,9 +86,48 @@ exec setsid cttyhack /bin/sh
         env,
     )?;
 
+    let sysroot = sysroots_dir()?.join(format!("sysroot-{}", target.to_string()));
+
+    if sysroot.join("lib").exists() {
+        copy_dir_to(&sysroot.join("lib"), &rootfs_dir).context("copying sysroot/lib")?;
+    }
+    if sysroot.join("lib64").exists() {
+        copy_dir_to(&sysroot.join("lib64"), &rootfs_dir).context("copying sysroot/lib64")?;
+    }
+
+    copy_dir_to(&sysroot.join("usr"), &rootfs_dir)?;
+
+    println!("=> packing");
     pack_rootfs(&rootfs_dir, &cpio_gz)?;
 
     Ok(cpio_gz)
+}
+
+/// Copy directory into another one.
+///
+/// This is a naive implementation that doesn't take cyclic symlinks or other edge cases into
+/// account. Only use for copying sysroot to rootfs.
+fn copy_dir_to<P: AsRef<Path>>(src: P, target_root: P) -> Result<()> {
+    let src = src.as_ref();
+    let target_root = target_root.as_ref();
+
+    let target_dir = target_root.join(src.file_name().unwrap());
+    std::fs::create_dir_all(&target_dir)?;
+
+    // Recursively walk through all entries
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let path = entry.path();
+        let target_path = target_dir.join(entry.file_name());
+
+        if path.is_dir() {
+            copy_dir_to(&path, &target_dir)?;
+        } else {
+            std::fs::copy(&path, &target_path)?;
+        }
+    }
+
+    Ok(())
 }
 
 pub fn fix_busybox_config(path: impl AsRef<Path>) -> Result<()> {

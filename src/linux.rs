@@ -169,7 +169,8 @@ pub fn get_image(
 
     let out_image = match target.arch {
         Arch::X86_64 | Arch::I686 => boot_dir.join("bzImage"),
-        Arch::Armv7 | Arch::Aarch64 => boot_dir.join("zImage"),
+        Arch::Armv7 => boot_dir.join("zImage"),
+        Arch::Aarch64 => boot_dir.join("Image"),
         // for mips and ppc, the image is at the top level
         Arch::Ppc64Le | Arch::Ppc64 => boot_dir
             .parent()

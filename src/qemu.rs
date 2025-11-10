@@ -3,7 +3,7 @@ use std::{
     process::{Command, Stdio},
 };
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 
 use crate::profile::{Arch, Target};
 
@@ -62,9 +62,9 @@ pub fn start_vm(target: &Target, kernel: impl AsRef<Path>, initrd: impl AsRef<Pa
         print!("{} ", arg.to_str().unwrap());
     }
 
-    //let status = cmd.status()?;
-    //if !status.success() {
-    //    bail!("QEMU exited with status {status}");
-    //}
+    let status = cmd.status()?;
+    if !status.success() {
+        bail!("QEMU exited with status {status}");
+    }
     Ok(())
 }
