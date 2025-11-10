@@ -14,11 +14,12 @@ mod profile;
 mod qemu;
 mod sysroot;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use binutils::install_binutils;
 use gcc::install_gcc;
 
 use crate::{
+    download::cache_dir,
     gcc::{GccStage, Sysroot},
     profile::{Abi, Target},
     qemu::start_vm,
@@ -52,6 +53,20 @@ enum Commands {
         #[arg(short, long, default_value_t = false)]
         defconfig: bool,
     },
+    Cache {
+        #[command(subcommand)]
+        action: CacheAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum CacheAction {
+    /// Remove cache for a specific toolchain
+    Clean {
+        toolchain: String,
+    },
+    Dir {},
+    Prune {},
 }
 
 /// Install a toolchain.
@@ -123,6 +138,19 @@ fn main() -> Result<()> {
             let rootfs = busybox::build_rootfs(&target)?;
             start_vm(&target, kernel_image, rootfs)?;
         }
+        Commands::Cache { action } => match action {
+            CacheAction::Clean { toolchain: _ } => {
+                // TODO: should each build step expose a clean_cache(target) function? what about
+                // different versions? ask to clean the cache for a specific version?
+                unimplemented!()
+            }
+            CacheAction::Dir {} => {
+                println!("{}", cache_dir()?.display());
+            }
+            CacheAction::Prune {} => {
+                std::fs::remove_dir_all(cache_dir()?).context("failed to prune cache")?;
+            }
+        },
     };
 
     Ok(())
