@@ -12,6 +12,7 @@ pub enum Arch {
     Ppc64,
     Avr,
     Bpf,
+    Xtensa,
 }
 
 impl ToString for Arch {
@@ -26,6 +27,7 @@ impl ToString for Arch {
             Arch::Ppc64 => "ppc64".into(),
             Arch::Avr => "avr".into(),
             Arch::Bpf => "bpf".into(),
+            Arch::Xtensa => "xtensa".into(),
         }
     }
 }
@@ -41,6 +43,7 @@ impl Arch {
             Arch::Riscv64 => "riscv",
             Arch::Ppc64Le => "powerpc",
             Arch::Ppc64 => "powerpc",
+            Arch::Xtensa => "xtensa",
             Arch::Avr => unreachable!(),
             Arch::Bpf => unreachable!(),
         }
@@ -93,6 +96,9 @@ impl ToString for Abi {
 pub enum Vendor {
     Unknown,
     Pc,
+    Esp32,
+    Esp32S2,
+    Esp32S3,
     //Apple,
 }
 
@@ -101,6 +107,9 @@ impl ToString for Vendor {
         match self {
             Vendor::Unknown => "unknown".into(),
             Vendor::Pc => "pc".into(),
+            Vendor::Esp32 => "esp32".into(),
+            Vendor::Esp32S2 => "esp32s2".into(),
+            Vendor::Esp32S3 => "esp32s3".into(),
         }
     }
 }
@@ -118,6 +127,7 @@ impl FromStr for Arch {
             "ppc64" => Ok(Arch::Ppc64),
             "avr" => Ok(Arch::Avr),
             "bpf" => Ok(Arch::Bpf),
+            "xtensa" => Ok(Arch::Xtensa),
             _ => Err(anyhow!("unsupported architecture")),
         }
     }
@@ -145,6 +155,9 @@ impl FromStr for Vendor {
         match s {
             "unknown" => Ok(Vendor::Unknown),
             "pc" => Ok(Vendor::Pc),
+            "esp32" => Ok(Vendor::Esp32),
+            "esp32s2" => Ok(Vendor::Esp32S2),
+            "esp32s3" => Ok(Vendor::Esp32S3),
             _ => Err(anyhow!("unsupported vendor")),
         }
     }
@@ -180,6 +193,13 @@ impl ToString for Target {
             Target {
                 arch: Arch::Bpf, ..
             } => "bpf-unknown-none".into(),
+            Target {
+                arch: Arch::Xtensa,
+                vendor,
+                ..
+            } => {
+                format!("xtensa-{}-elf", vendor.to_string())
+            }
             // GNU tools will not understand the full format for freestanding targets.
             Target {
                 arch,
@@ -232,6 +252,13 @@ impl FromStr for Target {
                 os: Os::None,
                 abi: Abi::Elf,
             }),
+            ["xtensa", vendor @ ("esp32" | "esp32s2" | "esp32s3"), "elf"] => Ok(Target {
+                arch: Arch::Xtensa,
+                vendor: Vendor::from_str(vendor)?,
+                os: Os::None,
+                abi: Abi::Elf,
+            }),
+            ["xtensa", ..] => Err(anyhow!("unknown xtensa toolchain",)),
             // GNU tools will not understand the full format for freestanding targets.
             [arch, "unknown", "none", "elf"] => Err(anyhow!(
                 "use <arch>-elf for freestanding targets. use: {}-elf",
