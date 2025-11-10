@@ -99,10 +99,13 @@ pub fn download_archive<S: AsRef<str>>(url: S, use_cache: bool) -> Result<Downlo
     pb.set_style(style);
     pb.set_message(filename.clone());
 
-    // TODO: download to a *.download file and move to file_path when download is finished
-    let mut dest = File::create(&file_path).context(format!("creating {}", filename))?;
+    let mut download_path = file_path.clone();
+    download_path.add_extension("download");
+
+    let mut dest = File::create(&download_path).context(format!("creating {}", filename))?;
     let mut source = pb.wrap_read(response);
     io::copy(&mut source, &mut dest).context(format!("writing {}", filename))?;
+    std::fs::rename(&download_path, &file_path).context("moving .download file")?;
 
     pb.finish();
 
