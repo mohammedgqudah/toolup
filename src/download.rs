@@ -88,15 +88,17 @@ pub fn download_archive<S: AsRef<str>>(url: S, use_cache: bool) -> Result<Downlo
         .error_for_status()
         .context(format!("non-success status from {}", url))?;
 
-    let total_size = response.content_length().expect("should have a length");
-
     let style = ProgressStyle::with_template(
         "{msg:.dim} {bar:30.green/dim} {binary_bytes:>7}/{binary_total_bytes:7}",
     )
     .expect("this should be a valid template")
     .progress_chars("--");
 
-    let pb = ProgressBar::new(total_size);
+    let pb = match response.content_length() {
+        Some(size) => ProgressBar::new(size),
+        None => ProgressBar::new_spinner(),
+    };
+
     pb.set_style(style);
     pb.set_message(filename.clone());
 
@@ -117,10 +119,7 @@ pub fn download_archive<S: AsRef<str>>(url: S, use_cache: bool) -> Result<Downlo
     }
 }
 
-pub fn decompress_tar<P: AsRef<Path>, Q: AsRef<Path>>(
-    tar_xz_path: P,
-    dest_dir: Q,
-) -> Result<()> {
+pub fn decompress_tar<P: AsRef<Path>, Q: AsRef<Path>>(tar_xz_path: P, dest_dir: Q) -> Result<()> {
     let tar_xz_path = tar_xz_path.as_ref();
     let dest_dir = dest_dir.as_ref();
 
@@ -143,6 +142,7 @@ pub fn decompress_tar<P: AsRef<Path>, Q: AsRef<Path>>(
     let decoder: Box<dyn std::io::Read> = match tar_xz_path.extension().unwrap().to_str().unwrap() {
         "xz" => Box::new(XzDecoder::new(reader)),
         "gz" => Box::new(GzDecoder::new(reader)),
+        "bz2" => Box::new(bzip2::read::BzDecoder::new(reader)),
         _ => unimplemented!(),
     };
     let mut archive = Archive::new(decoder);

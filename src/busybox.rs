@@ -5,14 +5,20 @@ use std::path::Path;
 use std::{fs::OpenOptions, path::PathBuf};
 
 use crate::cpio::pack_rootfs;
-use crate::download::cross_prefix;
 use crate::download::{cache_dir, sysroots_dir};
+use crate::download::{cross_prefix, download_and_decompress};
 use crate::make::run_make_with_env_in;
 use crate::profile::Target;
 
 pub fn download_busybox() -> Result<PathBuf> {
-    // TODO: decompress bz2 https://busybox.net/downloads/busybox-1.36.1.tar.bz2
-    Ok(cache_dir()?.join("busybox-1.36.1"))
+    println!("=> downloading busybox");
+
+    // using the github mirror because busybox.net is super slow and times out most of the time.
+    download_and_decompress(
+        "https://github.com/mirror/busybox/archive/refs/tags/1_36_1.tar.gz",
+        "busybox-1_36_1",
+        true,
+    )
 }
 
 /// Returns rootfs image
