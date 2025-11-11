@@ -7,7 +7,8 @@ use crate::{
     gcc::{GccStage, Sysroot, install_gcc},
     glibc::install_glibc_sysroot,
     linux,
-    profile::Target,
+    musl::install_musl_sysroot,
+    profile::{Abi, Target},
 };
 
 /// Create and populate a sysroot for a target.
@@ -31,7 +32,14 @@ pub fn setup_sysroot(target: &Target, gcc_version: impl AsRef<str>, jobs: u64) -
 
     install_gcc(target, gcc_version, jobs, GccStage::Stage1)?;
 
-    install_glibc_sysroot(target, Sysroot(sysroot.clone()))?;
+    match target.abi {
+        Abi::Musl => {
+            install_musl_sysroot(target, Sysroot(sysroot.clone()))?;
+        }
+        _ => {
+            install_glibc_sysroot(target, Sysroot(sysroot.clone()))?;
+        }
+    }
 
     Ok(sysroot)
 }

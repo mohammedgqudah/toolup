@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use flate2::read::GzDecoder;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use std::{
     fs::{self, File},
@@ -116,7 +117,7 @@ pub fn download_archive<S: AsRef<str>>(url: S, use_cache: bool) -> Result<Downlo
     }
 }
 
-pub fn decompress_tar_xz<P: AsRef<Path>, Q: AsRef<Path>>(
+pub fn decompress_tar<P: AsRef<Path>, Q: AsRef<Path>>(
     tar_xz_path: P,
     dest_dir: Q,
 ) -> Result<()> {
@@ -139,7 +140,11 @@ pub fn decompress_tar_xz<P: AsRef<Path>, Q: AsRef<Path>>(
     // stream-decompress and extract
     let reader = BufReader::new(file);
     let reader = pb_entry.wrap_read(reader);
-    let decoder = XzDecoder::new(reader);
+    let decoder: Box<dyn std::io::Read> = match tar_xz_path.extension().unwrap().to_str().unwrap() {
+        "xz" => Box::new(XzDecoder::new(reader)),
+        "gz" => Box::new(GzDecoder::new(reader)),
+        _ => unimplemented!(),
+    };
     let mut archive = Archive::new(decoder);
 
     for entry_res in archive.entries().context("reading .tar entries")? {
@@ -174,7 +179,7 @@ pub fn download_and_decompress(
         DownloadResult::Replaced(p) | DownloadResult::Created(p) => p,
     };
 
-    decompress_tar_xz(archive_path, cache_dir()?)?;
+    decompress_tar(archive_path, cache_dir()?)?;
 
     Ok(cache_dir()?.join(dirname.as_ref()))
 }

@@ -10,6 +10,7 @@ mod gcc;
 mod glibc;
 mod linux;
 mod make;
+mod musl;
 mod profile;
 mod qemu;
 mod sysroot;
@@ -94,9 +95,8 @@ fn install_toolchain(toolchain_str: String, gcc: String, jobs: u64, force: bool)
             install_binutils(&toolchain, jobs)?;
             install_gcc(&toolchain, &gcc, jobs, GccStage::Stage1)?;
         }
-        // glibc path
         Target {
-            abi: Abi::Gnu | Abi::GnuEabi | Abi::GnuEabihf,
+            abi: Abi::Gnu | Abi::GnuEabi | Abi::GnuEabihf | Abi::Musl,
             ..
         } => {
             install_binutils(&toolchain, jobs)?;
