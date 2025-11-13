@@ -39,75 +39,7 @@ pub fn _run_make_in<P: AsRef<Path>>(
     args: &[&str],
     env: Option<Vec<(String, String)>>,
 ) -> Result<()> {
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::with_template("{spinner:.dim} {msg:.dim}")?);
-    pb.enable_steady_tick(Duration::from_millis(80));
-    pb.set_message(format!("make {}", args.join(" ")));
-
-    let mut _cmd = Command::new("make");
-
-    _cmd.args(args)
-        .current_dir(workdir.as_ref())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    if let Some(_env) = env {
-        _cmd.envs(_env);
-    }
-
-    let mut child = _cmd.spawn().context("spawning `make`")?;
-    let stdout = child.stdout.take().unwrap();
-    let stderr = child.stderr.take().unwrap();
-    let log_path = logs_dir()?.join(log_filename("make"));
-    let log = Arc::new(Mutex::new(File::create(&log_path)?));
-
-    let t_out = {
-        // stream stdout
-        let pb_out = pb.clone();
-        let log_out = log.clone();
-        std::thread::spawn(move || {
-            let reader = BufReader::new(stdout);
-            for line in reader.lines().flatten() {
-                pb_out.set_message(line.chars().take(80).collect::<String>());
-                if let Ok(mut f) = log_out.lock() {
-                    let _ = f.write_all(line.as_bytes());
-                    let _ = f.write_all("\n".as_bytes());
-                }
-            }
-        })
-    };
-
-    let t_err = {
-        // stream stderr
-        let pb_err = pb.clone();
-        let log_out = log.clone();
-        std::thread::spawn(move || {
-            let reader = BufReader::new(stderr);
-            for line in reader.lines().flatten() {
-                pb_err.set_message(line.chars().take(80).collect::<String>());
-                if let Ok(mut f) = log_out.lock() {
-                    let _ = f.write_all(line.as_bytes());
-                    let _ = f.write_all("\n".as_bytes());
-                }
-            }
-        })
-    };
-
-    let status = child.wait().context("waiting for `make` to finish")?;
-    let _ = t_out.join();
-    let _ = t_err.join();
-
-    if status.success() {
-        pb.finish_with_message("make finished successfully");
-        Ok(())
-    } else {
-        pb.finish();
-        bail!(
-            "make exited with status {}\nFull output is available at {}",
-            status,
-            log_path.display()
-        );
-    }
+    run_command_in(workdir, "make", "make", args, env)
 }
 
 pub fn run_configure_in<P: AsRef<Path>, S: AsRef<OsStr>>(workdir: P, args: &[S]) -> Result<()> {
@@ -127,12 +59,32 @@ pub fn _run_configure_in<P: AsRef<Path>, S: AsRef<OsStr>>(
     args: &[S],
     env: Option<Vec<(String, String)>>,
 ) -> Result<()> {
+    run_command_in(
+        &workdir,
+        "configure",
+        workdir.as_ref().parent().unwrap().join("configure"),
+        args,
+        env,
+    )
+}
+
+/// Run a command in directory and show output in a spinner.
+///
+/// If the command doesn't finish successfuly the full output will saved to a file and the path
+/// will be printed.
+pub fn run_command_in(
+    workdir: impl AsRef<Path>,
+    title: &'static str,
+    command: impl AsRef<OsStr>,
+    args: &[impl AsRef<OsStr>],
+    env: Option<Vec<(String, String)>>,
+) -> Result<()> {
     let pb = ProgressBar::new_spinner();
     pb.set_style(ProgressStyle::with_template("{spinner:.dim} {msg:.dim}")?);
     pb.enable_steady_tick(Duration::from_millis(80));
-    pb.set_message(format!("configure"));
+    pb.set_message(title);
 
-    let mut _cmd = Command::new(workdir.as_ref().join("..").join("configure"));
+    let mut _cmd = Command::new(command);
     _cmd.args(args)
         .current_dir(workdir.as_ref())
         .stdout(Stdio::piped())
@@ -141,12 +93,12 @@ pub fn _run_configure_in<P: AsRef<Path>, S: AsRef<OsStr>>(
     if let Some(_env) = env {
         _cmd.envs(_env);
     }
-    let mut child = _cmd.spawn().context("spawning `configure`")?;
+    let mut child = _cmd.spawn().context(format!("spawning `{title}`"))?;
 
-    let stdout = child.stdout.take().unwrap();
-    let stderr = child.stderr.take().unwrap();
+    let stdout = child.stdout.take().expect("stdout is not None");
+    let stderr = child.stderr.take().expect("stderr is not None");
 
-    let log_path = logs_dir()?.join(log_filename("configure"));
+    let log_path = logs_dir()?.join(log_filename(title));
     let log = Arc::new(Mutex::new(File::create(&log_path)?));
 
     let t_out = {
@@ -181,17 +133,19 @@ pub fn _run_configure_in<P: AsRef<Path>, S: AsRef<OsStr>>(
         })
     };
 
-    let status = child.wait().context("waiting for `configure` to finish")?;
+    let status = child
+        .wait()
+        .context(format!("waiting for `{title}` to finish"))?;
     let _ = t_out.join();
     let _ = t_err.join();
 
     if status.success() {
-        pb.finish_with_message("configure finished successfully");
+        pb.finish_with_message(format!("{title} finished successfully"));
         Ok(())
     } else {
         pb.finish();
         bail!(
-            "configure exited with status {}\nFull output is available at {}",
+            "{title} exited with status {}\nFull output is available at {}",
             status,
             log_path.display()
         );
