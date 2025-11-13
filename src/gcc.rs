@@ -49,7 +49,7 @@ pub fn install_gcc(
     let jobs = jobs.to_string();
     match stage {
         GccStage::Stage1 => {
-            println!("=> stage1 gcc");
+            log::info!("=> stage1 gcc");
             let objdir = gcc_dir.join(format!("objdir-stage1-arch-{}", target.to_string()));
             std::fs::create_dir_all(&objdir).context("failed to create an objdir for the arch")?;
 
@@ -76,7 +76,7 @@ pub fn install_gcc(
             run_make_in(&objdir, &["install-target-libgcc", "-j", jobs.as_str()])?;
         }
         GccStage::Final(maybe_sysroot) => {
-            println!("=> final stage gcc");
+            log::info!("=> final stage gcc");
 
             let objdir = gcc_dir.join(format!("objdir-final-arch-{}", target.to_string()));
             std::fs::create_dir_all(&objdir).context("failed to create an objdir for the arch")?;

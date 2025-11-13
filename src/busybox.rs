@@ -11,7 +11,7 @@ use crate::make::run_make_with_env_in;
 use crate::profile::Target;
 
 pub fn download_busybox() -> Result<PathBuf> {
-    println!("=> downloading busybox");
+    log::info!("=> downloading busybox");
 
     // using the github mirror because busybox.net is super slow and times out most of the time.
     download_and_decompress(
@@ -30,7 +30,7 @@ pub fn build_rootfs(target: &Target) -> Result<PathBuf> {
         return Ok(cpio_gz);
     }
 
-    println!("=> busybox");
+    log::info!("=> busybox");
 
     std::fs::create_dir_all(&rootfs_dir)?;
     std::fs::create_dir_all(&rootfs_dir.join("proc"))?;
@@ -103,7 +103,7 @@ exec setsid cttyhack /bin/sh
 
     copy_dir_to(&sysroot.join("usr"), &rootfs_dir)?;
 
-    println!("=> packing");
+    log::info!("=> packing");
     pack_rootfs(&rootfs_dir, &cpio_gz)?;
 
     Ok(cpio_gz)

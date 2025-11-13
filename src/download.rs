@@ -173,7 +173,7 @@ pub fn download_and_decompress(
     let download_result = download_archive(url, use_cache)?;
     let archive_path = match download_result {
         DownloadResult::Cached(p) => {
-            println!("=> using cached {}", dirname.as_ref());
+            log::debug!("=> using cached {}", dirname.as_ref());
             p
         }
         DownloadResult::Replaced(p) | DownloadResult::Created(p) => p,

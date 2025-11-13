@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::str::FromStr;
 
 use clap::{Parser, Subcommand};
@@ -115,6 +116,21 @@ fn install_toolchain(toolchain_str: String, gcc: String, jobs: u64, force: bool)
 }
 
 fn main() -> Result<()> {
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Debug)
+        .format(|buf, record| {
+            let warn_style = buf.default_level_style(log::Level::Warn);
+            match record.level() {
+                log::Level::Info => {
+                    writeln!(buf, "{}", record.args())
+                }
+                _ => {
+                    writeln!(buf, "{warn_style}{}{warn_style:#}", record.args())
+                }
+            }
+        })
+        .init();
+
     let cli = Cli::parse();
 
     match cli.command {
@@ -145,7 +161,7 @@ fn main() -> Result<()> {
                 unimplemented!()
             }
             CacheAction::Dir {} => {
-                println!("{}", cache_dir()?.display());
+                log::info!("{}", cache_dir()?.display());
             }
             CacheAction::Prune {} => {
                 std::fs::remove_dir_all(cache_dir()?).context("failed to prune cache")?;

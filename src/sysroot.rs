@@ -20,7 +20,7 @@ use crate::{
 ///
 /// The caller must already have installed binutils.
 pub fn setup_sysroot(target: &Target, gcc_version: impl AsRef<str>, jobs: u64) -> Result<PathBuf> {
-    println!("=> setup sysroot");
+    log::info!("=> setup sysroot");
 
     let sysroot = sysroots_dir()?.join(format!("sysroot-{}", target.to_string()));
     std::fs::create_dir_all(&sysroot)?;

@@ -10,7 +10,7 @@ use crate::{
 };
 
 pub fn download_musl(version: impl AsRef<str>) -> Result<PathBuf> {
-    println!("=> download musl");
+    log::info!("=> download musl");
     let version = version.as_ref();
     let tarball = format!("musl-{version}.tar.gz");
     let url = format!(
@@ -25,7 +25,7 @@ pub fn download_musl(version: impl AsRef<str>) -> Result<PathBuf> {
 }
 
 pub fn install_musl_sysroot(target: &Target, sysroot: Sysroot) -> Result<()> {
-    println!("=> install musl");
+    log::info!("=> install musl");
 
     let musl_dir = download_musl("1.2.5")?;
     let objdir = musl_dir.join(format!("objdir-arch-{}", target.to_string()));

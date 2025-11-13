@@ -10,7 +10,7 @@ use crate::{
 };
 
 pub fn download_glibc(version: impl AsRef<str>) -> Result<PathBuf> {
-    println!("=> download glibc");
+    log::info!("=> download glibc");
     let version = version.as_ref();
     let tarball = format!("glibc-{version}.tar.xz");
     let url = format!(
@@ -25,7 +25,7 @@ pub fn download_glibc(version: impl AsRef<str>) -> Result<PathBuf> {
 }
 
 pub fn install_glibc_sysroot(target: &Target, sysroot: Sysroot) -> Result<()> {
-    println!("=> install glibc");
+    log::info!("=> install glibc");
 
     let glibc_dir = download_glibc("2.42")?;
     let objdir = glibc_dir.join(format!("objdir-arch-{}", target.to_string()));

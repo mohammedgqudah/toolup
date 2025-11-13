@@ -8,7 +8,7 @@ use crate::{
 
 /// Download and build binutils.
 pub fn install_binutils(target: &Target, jobs: u64) -> Result<()> {
-    println!("=> install binutils");
+    log::info!("=> install binutils");
 
     let binutils_dir = download_and_decompress(
         "https://ftp.gnu.org/gnu/binutils/binutils-2.45.tar.xz",

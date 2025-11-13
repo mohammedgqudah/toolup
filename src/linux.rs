@@ -14,7 +14,7 @@ use crate::{
 };
 
 pub fn download_linux(version: impl AsRef<str>) -> Result<PathBuf> {
-    println!("=> download linux");
+    log::info!("=> download linux");
 
     let version = version.as_ref();
     let major = version.split(".").next().unwrap();
@@ -31,7 +31,7 @@ pub fn download_linux(version: impl AsRef<str>) -> Result<PathBuf> {
 }
 
 pub fn install_headers(target: &Target, sysroot: impl AsRef<Path>) -> Result<()> {
-    println!("=> install linux headers");
+    log::info!("=> install linux headers");
     let kernel_src = download_linux("6.17.7")?;
 
     run_make_in(
@@ -52,7 +52,7 @@ pub fn config(
     menuconfig: bool,
     use_defconfig: bool,
 ) -> Result<()> {
-    println!("=> kernel defconfig");
+    log::info!("=> kernel defconfig");
 
     let env: Vec<(String, String)> = vec![(
         "PATH".into(),
@@ -124,7 +124,7 @@ pub fn config(
 }
 
 pub fn build(target: &Target, workdir: PathBuf, jobs: u64, out: PathBuf) -> Result<()> {
-    println!("=> kerenl build");
+    log::info!("=> kerenl build");
 
     let env: Vec<(String, String)> = vec![(
         "PATH".into(),
@@ -159,7 +159,7 @@ pub fn get_image(
     menuconfig: bool,
     defconfig: bool,
 ) -> Result<PathBuf> {
-    println!("=> kernel image");
+    log::info!("=> kernel image");
 
     let out = build_out(&version, target)?;
     let boot_dir = out
