@@ -8,7 +8,9 @@ use std::{
     time::Duration,
 };
 use tar::Archive;
-use xz2::read::XzDecoder;
+//use xz2::read::XzDecoder;
+//use xz2::bufread::XzDecoder;
+use lzma::LzmaReader as XzDecoder;
 
 pub fn cache_dir() -> Result<PathBuf> {
     let cache =
@@ -140,7 +142,9 @@ pub fn decompress_tar<P: AsRef<Path>, Q: AsRef<Path>>(tar_xz_path: P, dest_dir: 
     let reader = BufReader::new(file);
     let reader = pb_entry.wrap_read(reader);
     let decoder: Box<dyn std::io::Read> = match tar_xz_path.extension().unwrap().to_str().unwrap() {
-        "xz" => Box::new(XzDecoder::new(reader)),
+        "xz" => Box::new(
+            XzDecoder::new_decompressor(reader).context("failed to create new decompressor")?,
+        ),
         "gz" => Box::new(GzDecoder::new(reader)),
         "bz2" => Box::new(bzip2::read::BzDecoder::new(reader)),
         _ => unimplemented!(),

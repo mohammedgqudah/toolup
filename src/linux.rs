@@ -3,9 +3,10 @@ use std::{
     io::Read,
     path::{Path, PathBuf},
     process::{Command, Stdio},
+    str::FromStr,
 };
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 
 use crate::{
     download::{cross_prefix, download_and_decompress, linux_images_dir},
@@ -123,10 +124,54 @@ pub fn config(
     Ok(())
 }
 
-pub fn build(target: &Target, workdir: PathBuf, jobs: u64, out: PathBuf) -> Result<()> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct KernelVersion {
+    major: u64,
+    minor: u64,
+    patch: u64,
+}
+
+impl FromStr for KernelVersion {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        let parts: Vec<&str> = s.split(".").collect();
+
+        match parts.as_slice() {
+            [major, minor] => Ok(KernelVersion {
+                major: major.parse().context("invalid version")?,
+                minor: minor.parse().context("invalid version")?,
+                patch: 0,
+            }),
+            [major, minor, patch] => Ok(KernelVersion {
+                major: major.parse().context("invalid version")?,
+                minor: minor.parse().context("invalid version")?,
+                patch: patch.parse().context("invalid version")?,
+            }),
+            _ => Err(anyhow!("")),
+        }
+    }
+}
+impl ToString for KernelVersion {
+    fn to_string(&self) -> String {
+        if self.patch == 0 {
+            format!("{}.{}", self.major, self.minor)
+        } else {
+            format!("{}.{}.{}", self.major, self.minor, self.patch)
+        }
+    }
+}
+
+pub fn build(
+    version: impl AsRef<str>,
+    target: &Target,
+    workdir: PathBuf,
+    jobs: u64,
+    out: PathBuf,
+) -> Result<()> {
     log::info!("=> kerenl build");
 
-    let env: Vec<(String, String)> = vec![(
+    let mut env: Vec<(String, String)> = vec![(
         "PATH".into(),
         format!(
             "{}:{}",
@@ -134,17 +179,63 @@ pub fn build(target: &Target, workdir: PathBuf, jobs: u64, out: PathBuf) -> Resu
             std::env::var("PATH")?
         ),
     )];
+    let mut args: Vec<String> = vec![
+        format!("O={}", out.display()),
+        format!("ARCH={}", target.arch.to_kernel_arch()),
+        format!("CROSS_COMPILE={}-", target.to_string()),
+        format!("-j{}", jobs),
+    ];
 
-    run_make_with_env_in(
-        &workdir,
-        &[
-            format!("O={}", out.display()).as_str(),
-            format!("ARCH={}", target.arch.to_kernel_arch()).as_str(),
-            format!("CROSS_COMPILE={}-", target.to_string()).as_str(),
-            format!("-j{}", jobs).as_str(),
-        ],
-        env,
-    )?;
+    let mut kcflags: Vec<&str> = vec![];
+    let kernel_version = KernelVersion::from_str(version.as_ref())?;
+
+    // modify compiler flags to compile old kernels with a newer GCC version.
+    if kernel_version <= KernelVersion::from_str("6.14").unwrap() {
+        // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=117178
+        kcflags.push("-Wno-unterminated-string-initialization");
+    }
+
+    // 'bool' is a keyword with '-std=c23' onwards
+    if kernel_version <= KernelVersion::from_str("6.13").unwrap() {
+        kcflags.push("-std=gnu11");
+
+        args.push("CFLAGS_KERNEL=-std=gnu11".into());
+        args.push("CFLAGS_MODULE=-std=gnu11".into());
+    }
+
+    if kernel_version <= KernelVersion::from_str("6.2").unwrap() {
+        // https://lists.linaro.org/archives/list/linux-stable-mirror%40lists.linaro.org/message/7X43AVMPEXUTTYJFHQLJAV5AMZO7PFB3/
+        kcflags.push("-Wno-array-bounds");
+
+        args.push("CFLAGS_KERNEL=-std=gnu11".into());
+        args.push("CFLAGS_MODULE=-std=gnu11".into());
+    }
+
+    if kernel_version <= KernelVersion::from_str("6.0").unwrap() {
+        kcflags.push("-Wno-error=format");
+    }
+
+    if kernel_version <= KernelVersion::from_str("5.15").unwrap() {
+        kcflags.push("-Wno-use-after-free");
+        kcflags.push("-fno-analyzer");
+        kcflags.push("-Wno-error=use-after-free");
+        args.push("CFLAGS_KERNEL=-std=gnu11 -Wno-error=use-after-free -Wno-use-after-free".into());
+        args.push("CFLAGS_MODULE=-std=gnu11 -Wno-error=use-after-free -Wno-use-after-free".into());
+        args.push("CFLAGS=-Wno-error=use-after-free -Wno-use-after-free".into());
+        args.push("EXTRA_CFLAGS=-Wno-error=use-after-free -Wno-use-after-free".into());
+    }
+
+    if kernel_version <= KernelVersion::from_str("5.10").unwrap() {
+        // TODO: we need an old binutils for objtool to work
+        // TODO: I need to work on supporting multiple versions of the same toolchain.
+        // Or, pass CONFIG_STACK_VALIDATION=n, but I need to create a function to programmatically
+        // configure the kernel.
+    }
+
+    if !kcflags.is_empty() {
+        env.push(("KCFLAGS".into(), kcflags.join(" ")));
+    }
+    run_make_with_env_in(&workdir, &args, env)?;
     Ok(())
 }
 
@@ -202,7 +293,7 @@ pub fn get_image(
         return Ok(toolup_image);
     }
 
-    build(target, workdir.clone(), jobs, out)?;
+    build(&version, target, workdir.clone(), jobs, out)?;
 
     std::fs::copy(out_image, &toolup_image).context("failed to copy kernel image")?;
 

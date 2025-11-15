@@ -28,7 +28,7 @@ pub fn run_make_in<P: AsRef<Path>>(workdir: P, args: &[&str]) -> Result<()> {
 
 pub fn run_make_with_env_in<P: AsRef<Path>>(
     workdir: P,
-    args: &[&str],
+    args: &[impl AsRef<OsStr>],
     env: Vec<(String, String)>,
 ) -> Result<()> {
     _run_make_in(workdir, args, Some(env))
@@ -36,7 +36,7 @@ pub fn run_make_with_env_in<P: AsRef<Path>>(
 
 pub fn _run_make_in<P: AsRef<Path>>(
     workdir: P,
-    args: &[&str],
+    args: &[impl AsRef<OsStr>],
     env: Option<Vec<(String, String)>>,
 ) -> Result<()> {
     run_command_in(workdir, "make", "make", args, env)
