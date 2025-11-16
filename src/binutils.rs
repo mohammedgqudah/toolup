@@ -22,7 +22,7 @@ pub fn install_binutils(toolchain: &Toolchain, jobs: u64) -> Result<()> {
     )
     .context("failed to download binutils")?;
 
-    let arch_dir = binutils_dir.join(format!("objdir-arch-{}", toolchain.target));
+    let arch_dir = binutils_dir.join(format!("objdir-arch-{}", toolchain.id()));
 
     std::fs::create_dir_all(&arch_dir).context("failed to create an objdir for the arch")?;
 

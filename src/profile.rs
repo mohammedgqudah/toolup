@@ -460,12 +460,7 @@ impl Toolchain {
     /// Returns the directory path for the toolchain. This is where GCC and binutils will be
     /// installed.
     pub fn dir(&self) -> Result<PathBuf> {
-        let name = format!(
-            "{}-gcc-{}-bin-{}-{}",
-            self.target, self.gcc.version, self.binutils.version, self.libc
-        );
-
-        Ok(download::cross_prefix()?.join(name))
+        Ok(download::cross_prefix()?.join(self.id()))
     }
 
     pub fn id(&self) -> String {
@@ -483,9 +478,9 @@ impl Toolchain {
 
     /// Returns the sysroot path.
     ///
-    /// The sysroot has the kerenl headers and a c library.
+    /// The sysroot has the kerenl headers and a C library.
     pub fn sysroot(&self) -> Result<PathBuf> {
-        Ok(sysroots_dir()?.join(format!("sysroot-{}-{}", self.target, self.libc)))
+        Ok(sysroots_dir()?.join(format!("sysroot-{}", self.id())))
     }
 
     pub fn env_path(&self) -> Result<String> {

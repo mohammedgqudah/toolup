@@ -33,7 +33,7 @@ pub fn install_musl_sysroot(toolchain: &Toolchain) -> Result<()> {
     };
 
     let musl_dir = download_musl(musl_version.to_string())?;
-    let objdir = musl_dir.join(format!("objdir-arch-{}", toolchain.target));
+    let objdir = musl_dir.join(format!("objdir-arch-{}", toolchain.id()));
     std::fs::create_dir_all(&objdir)?;
 
     let args = vec![
