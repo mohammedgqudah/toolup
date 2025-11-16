@@ -93,7 +93,7 @@ impl FromStr for MuslVersion {
                 parse_part(minor)?,
                 parse_part(patch)?,
             )),
-            _ => Err(anyhow!("`{}` is an invalid version", s)),
+            _ => Err(anyhow!("`{}` is an invalid musl version", s)),
         }
     }
 }

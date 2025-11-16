@@ -1,6 +1,7 @@
 use std::io::Write;
 use std::str::FromStr;
 
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
 mod binutils;
@@ -17,14 +18,10 @@ mod profile;
 mod qemu;
 mod sysroot;
 
-use anyhow::{Context, Result};
-use binutils::install_binutils;
-use gcc::install_gcc;
-
 use crate::{
-    binutils::{Binutils, BinutilsVersion},
+    binutils::{Binutils, BinutilsVersion, install_binutils},
     download::cache_dir,
-    gcc::{GCC, GCCVersion, GccStage, Sysroot},
+    gcc::{GCC, GCCVersion, GccStage, Sysroot, install_gcc},
     glibc::GlibcVersion,
     linux::KernelVersion,
     musl::MuslVersion,

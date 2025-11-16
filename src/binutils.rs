@@ -66,7 +66,7 @@ impl FromStr for BinutilsVersion {
                 parse_part(patch)?,
             )),
             [major, minor] => Ok(BinutilsVersion(parse_part(major)?, parse_part(minor)?, 0)),
-            _ => Err(anyhow!("`{}` is an invalid version", s)),
+            _ => Err(anyhow!("`{}` is an invalid binutils version", s)),
         }
     }
 }

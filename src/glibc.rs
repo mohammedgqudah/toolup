@@ -111,7 +111,7 @@ impl FromStr for GlibcVersion {
                 parse_part(patch)?,
             )),
             [major, minor] => Ok(GlibcVersion(parse_part(major)?, parse_part(minor)?, 0)),
-            _ => Err(anyhow!("`{}` is an invalid version", s)),
+            _ => Err(anyhow!("`{}` is an invalid glibc version", s)),
         }
     }
 }

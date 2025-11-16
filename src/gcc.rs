@@ -163,7 +163,7 @@ impl FromStr for GCCVersion {
                 parse_part(minor)?,
                 parse_part(patch)?,
             )),
-            _ => Err(anyhow!("`{}` is an invalid version", s)),
+            _ => Err(anyhow!("`{}` is an invalid gcc version", s)),
         }
     }
 }
