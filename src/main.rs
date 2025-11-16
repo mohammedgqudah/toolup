@@ -3,6 +3,7 @@ use std::str::FromStr;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use colored::Colorize;
 
 mod binutils;
 mod busybox;
@@ -104,6 +105,7 @@ fn install_toolchain(
     };
 
     println!("{}", toolchain);
+    log::info!("{}", toolchain.bin_dir()?.display().to_string().bold());
 
     if toolchain.gcc_bin()?.exists() && !force {
         log::info!("toolchain is already installed");
