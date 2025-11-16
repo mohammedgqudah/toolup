@@ -145,11 +145,7 @@ pub fn install_gcc(toolchain: &Toolchain, jobs: u64, stage: GccStage) -> Result<
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct GCCVersion {
-    major: u64,
-    minor: u64,
-    patch: u64,
-}
+pub struct GCCVersion(u64, u64, u64);
 
 impl FromStr for GCCVersion {
     type Err = anyhow::Error;
@@ -162,29 +158,19 @@ impl FromStr for GCCVersion {
         }
 
         match parts.as_slice() {
-            [major, minor, patch] => Ok(GCCVersion {
-                major: parse_part(major)?,
-                minor: parse_part(minor)?,
-                patch: parse_part(patch)?,
-            }),
+            [major, minor, patch] => Ok(GCCVersion(
+                parse_part(major)?,
+                parse_part(minor)?,
+                parse_part(patch)?,
+            )),
             _ => Err(anyhow!("`{}` is an invalid version", s)),
-        }
-    }
-}
-
-impl GCCVersion {
-    pub fn new(major: u64, minor: u64, patch: u64) -> Self {
-        Self {
-            major,
-            minor,
-            patch,
         }
     }
 }
 
 impl Display for GCCVersion {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+        write!(f, "{}.{}.{}", self.0, self.1, self.2)
     }
 }
 
@@ -195,7 +181,7 @@ pub struct GCC {
 impl Default for GCC {
     fn default() -> Self {
         Self {
-            version: GCCVersion::new(15, 2, 0),
+            version: GCCVersion(15, 2, 0),
         }
     }
 }

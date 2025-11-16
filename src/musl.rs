@@ -75,11 +75,7 @@ pub fn install_musl_sysroot(toolchain: &Toolchain) -> Result<()> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct MuslVersion {
-    major: u64,
-    minor: u64,
-    patch: u64,
-}
+pub struct MuslVersion(u64, u64, u64);
 
 impl FromStr for MuslVersion {
     type Err = anyhow::Error;
@@ -92,11 +88,11 @@ impl FromStr for MuslVersion {
         }
 
         match parts.as_slice() {
-            [major, minor, patch] => Ok(MuslVersion {
-                major: parse_part(major)?,
-                minor: parse_part(minor)?,
-                patch: parse_part(patch)?,
-            }),
+            [major, minor, patch] => Ok(MuslVersion(
+                parse_part(major)?,
+                parse_part(minor)?,
+                parse_part(patch)?,
+            )),
             _ => Err(anyhow!("`{}` is an invalid version", s)),
         }
     }
@@ -104,6 +100,6 @@ impl FromStr for MuslVersion {
 
 impl Display for MuslVersion {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+        write!(f, "{}.{}.{}", self.0, self.1, self.2)
     }
 }

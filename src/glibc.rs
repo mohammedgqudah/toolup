@@ -35,7 +35,7 @@ pub fn install_glibc_sysroot(toolchain: &Toolchain) -> Result<()> {
 
     // workaround: we need an old Make version to compile this glibc version.
     // see: https://stackoverflow.com/a/77107152/8701101
-    if glibc_version <= GlibcVersion::from_str("2.30").unwrap() {
+    if glibc_version <= GlibcVersion(2, 30, 0) {
         install_make("4.3", toolchain)?;
     }
 
@@ -92,11 +92,7 @@ pub fn install_glibc_sysroot(toolchain: &Toolchain) -> Result<()> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct GlibcVersion {
-    major: u64,
-    minor: u64,
-    patch: u64,
-}
+pub struct GlibcVersion(u64, u64, u64);
 
 impl FromStr for GlibcVersion {
     type Err = anyhow::Error;
@@ -109,16 +105,12 @@ impl FromStr for GlibcVersion {
         }
 
         match parts.as_slice() {
-            [major, minor, patch] => Ok(GlibcVersion {
-                major: parse_part(major)?,
-                minor: parse_part(minor)?,
-                patch: parse_part(patch)?,
-            }),
-            [major, minor] => Ok(GlibcVersion {
-                major: parse_part(major)?,
-                minor: parse_part(minor)?,
-                patch: 0,
-            }),
+            [major, minor, patch] => Ok(GlibcVersion(
+                parse_part(major)?,
+                parse_part(minor)?,
+                parse_part(patch)?,
+            )),
+            [major, minor] => Ok(GlibcVersion(parse_part(major)?, parse_part(minor)?, 0)),
             _ => Err(anyhow!("`{}` is an invalid version", s)),
         }
     }
@@ -127,10 +119,10 @@ impl FromStr for GlibcVersion {
 impl Display for GlibcVersion {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // 2.16.0 is the only version that has a `.0` in the FTP server
-        if (self.patch == 0) && (self.major, self.minor) != (2, 16) {
-            write!(f, "{}.{}", self.major, self.minor)
+        if (self.2 == 0) && (self.0, self.1) != (2, 16) {
+            write!(f, "{}.{}", self.0, self.1)
         } else {
-            write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+            write!(f, "{}.{}.{}", self.0, self.1, self.2)
         }
     }
 }

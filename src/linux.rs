@@ -196,20 +196,20 @@ pub fn build(
     let kernel_version = KernelVersion::from_str(version.as_ref())?;
 
     // modify compiler flags to compile old kernels with a newer GCC version.
-    if kernel_version <= KernelVersion::from_str("6.14").unwrap() {
+    if kernel_version <= KernelVersion(6, 14, 0) {
         // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=117178
         kcflags.push("-Wno-unterminated-string-initialization");
     }
 
     // 'bool' is a keyword with '-std=c23' onwards
-    if kernel_version <= KernelVersion::from_str("6.13").unwrap() {
+    if kernel_version <= KernelVersion(6, 13, 0) {
         kcflags.push("-std=gnu11");
 
         args.push("CFLAGS_KERNEL=-std=gnu11".into());
         args.push("CFLAGS_MODULE=-std=gnu11".into());
     }
 
-    if kernel_version <= KernelVersion::from_str("6.2").unwrap() {
+    if kernel_version <= KernelVersion(6, 2, 0) {
         // https://lists.linaro.org/archives/list/linux-stable-mirror%40lists.linaro.org/message/7X43AVMPEXUTTYJFHQLJAV5AMZO7PFB3/
         kcflags.push("-Wno-array-bounds");
 
@@ -217,7 +217,7 @@ pub fn build(
         args.push("CFLAGS_MODULE=-std=gnu11".into());
     }
 
-    if kernel_version <= KernelVersion::from_str("6.0").unwrap() {
+    if kernel_version <= KernelVersion(6, 0, 0) {
         kcflags.push("-Wno-error=format");
     }
 
@@ -261,7 +261,7 @@ pub fn get_image(
     log::info!("=> kernel image");
 
     let kernel_version = KernelVersion::from_str(version.as_ref())?;
-    let toolchain = if kernel_version <= KernelVersion::from_str("5.1").unwrap() {
+    let toolchain = if kernel_version <= KernelVersion(5, 1, 0) {
         install_toolchain(
             target.to_string(),
             "7.5.0".into(),
@@ -271,7 +271,7 @@ pub fn get_image(
             jobs,
             false,
         )?
-    } else if kernel_version <= KernelVersion::from_str("5.10").unwrap() {
+    } else if kernel_version <= KernelVersion(5, 10, 0) {
         install_toolchain(
             target.to_string(),
             "15.2.0".into(),

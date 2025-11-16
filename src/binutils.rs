@@ -47,11 +47,7 @@ pub fn install_binutils(toolchain: &Toolchain, jobs: u64) -> Result<()> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct BinutilsVersion {
-    major: u64,
-    minor: u64,
-    patch: u64,
-}
+pub struct BinutilsVersion(u64, u64, u64);
 
 impl FromStr for BinutilsVersion {
     type Err = anyhow::Error;
@@ -64,16 +60,12 @@ impl FromStr for BinutilsVersion {
         }
 
         match parts.as_slice() {
-            [major, minor, patch] => Ok(BinutilsVersion {
-                major: parse_part(major)?,
-                minor: parse_part(minor)?,
-                patch: parse_part(patch)?,
-            }),
-            [major, minor] => Ok(BinutilsVersion {
-                major: parse_part(major)?,
-                minor: parse_part(minor)?,
-                patch: 0,
-            }),
+            [major, minor, patch] => Ok(BinutilsVersion(
+                parse_part(major)?,
+                parse_part(minor)?,
+                parse_part(patch)?,
+            )),
+            [major, minor] => Ok(BinutilsVersion(parse_part(major)?, parse_part(minor)?, 0)),
             _ => Err(anyhow!("`{}` is an invalid version", s)),
         }
     }
@@ -81,10 +73,10 @@ impl FromStr for BinutilsVersion {
 
 impl Display for BinutilsVersion {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.patch == 0 {
-            write!(f, "{}.{}", self.major, self.minor)
+        if self.2 == 0 {
+            write!(f, "{}.{}", self.0, self.1)
         } else {
-            write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+            write!(f, "{}.{}.{}", self.0, self.1, self.2)
         }
     }
 }
