@@ -1,6 +1,6 @@
 use std::{
     fs::OpenOptions,
-    io::Read,
+    io::{Read, Write},
     path::PathBuf,
     process::{Command, Stdio},
     str::FromStr,
@@ -29,12 +29,33 @@ pub fn download_linux(version: impl AsRef<str>) -> Result<PathBuf> {
     let linux_dir = download_and_decompress(&url, format!("linux-{version}"), true)
         .context(format!("failed to download {tarball}"))?;
 
+    // TODO: pass parsed version to this function
+    if KernelVersion::from_str(version.as_ref()).unwrap() == KernelVersion(5, 1, 0) {
+        const DTC_LEXER_PATCH: &str = include_str!("../patches/linux-5.1-dtc-lexer.1.patch");
+        let mut cmd = Command::new("git")
+            .arg("apply")
+            .arg("-")
+            .current_dir(linux_dir.join("scripts").join("dtc"))
+            .stdin(std::process::Stdio::piped())
+            .spawn()?;
+        let stdin = cmd
+            .stdin
+            .as_mut()
+            .context("git apply: failed to open stdin")?;
+        stdin.write_all(DTC_LEXER_PATCH.as_bytes())?;
+        cmd.wait()?;
+    }
     Ok(linux_dir)
 }
 
 pub fn install_headers(toolchain: &Toolchain) -> Result<()> {
     log::info!("=> install linux headers");
-    let kernel_src = download_linux("6.17.7")?;
+
+    let kernel_src = if let Some(kernel_version) = toolchain.kernel {
+        download_linux(kernel_version.to_string())?
+    } else {
+        download_linux("6.17.7")?
+    };
 
     run_make_in(
         kernel_src,
@@ -121,11 +142,7 @@ pub fn config(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct KernelVersion {
-    major: u64,
-    minor: u64,
-    patch: u64,
-}
+pub struct KernelVersion(u64, u64, u64);
 
 impl FromStr for KernelVersion {
     type Err = anyhow::Error;
@@ -134,26 +151,26 @@ impl FromStr for KernelVersion {
         let parts: Vec<&str> = s.split(".").collect();
 
         match parts.as_slice() {
-            [major, minor] => Ok(KernelVersion {
-                major: major.parse().context("invalid version")?,
-                minor: minor.parse().context("invalid version")?,
-                patch: 0,
-            }),
-            [major, minor, patch] => Ok(KernelVersion {
-                major: major.parse().context("invalid version")?,
-                minor: minor.parse().context("invalid version")?,
-                patch: patch.parse().context("invalid version")?,
-            }),
+            [major, minor] => Ok(KernelVersion(
+                major.parse().context("invalid version")?,
+                minor.parse().context("invalid version")?,
+                0,
+            )),
+            [major, minor, patch] => Ok(KernelVersion(
+                major.parse().context("invalid version")?,
+                minor.parse().context("invalid version")?,
+                patch.parse().context("invalid version")?,
+            )),
             _ => Err(anyhow!("")),
         }
     }
 }
 impl ToString for KernelVersion {
     fn to_string(&self) -> String {
-        if self.patch == 0 {
-            format!("{}.{}", self.major, self.minor)
+        if self.2 == 0 {
+            format!("{}.{}", self.0, self.1)
         } else {
-            format!("{}.{}.{}", self.major, self.minor, self.patch)
+            format!("{}.{}.{}", self.0, self.1, self.2)
         }
     }
 }
@@ -204,9 +221,9 @@ pub fn build(
         kcflags.push("-Wno-error=format");
     }
 
-    if kernel_version <= KernelVersion::from_str("5.15").unwrap() {
+    if kernel_version <= KernelVersion(5, 15, 0) && kernel_version > KernelVersion(5, 1, 0) {
         kcflags.push("-Wno-use-after-free");
-        kcflags.push("-fno-analyzer");
+        //kcflags.push("-fno-analyzer");
         kcflags.push("-Wno-error=use-after-free");
         args.push("CFLAGS_KERNEL=-std=gnu11 -Wno-error=use-after-free -Wno-use-after-free".into());
         args.push("CFLAGS_MODULE=-std=gnu11 -Wno-error=use-after-free -Wno-use-after-free".into());
@@ -214,8 +231,10 @@ pub fn build(
         args.push("EXTRA_CFLAGS=-Wno-error=use-after-free -Wno-use-after-free".into());
     }
 
-    if kernel_version <= KernelVersion::from_str("5.1").unwrap() {
-        kcflags.push("-Wno-error=redundant-decls");
+    if kernel_version <= KernelVersion(5, 1, 0) {
+        args.push("HOSTCFLAGS=-Wno-error=redundant-decls -fno-common".into());
+        args.push("KBUILD_HOSTCFLAGS=-Wno-error -fno-common".into());
+        args.push("V=1".into());
     }
 
     if !kcflags.is_empty() {
@@ -248,6 +267,7 @@ pub fn get_image(
             "7.5.0".into(),
             "2.30".into(),
             "2.33.1".into(),
+            Some(&kernel_version),
             jobs,
             false,
         )?
@@ -257,6 +277,7 @@ pub fn get_image(
             "15.2.0".into(),
             "2.35".into(),
             "2.34".into(), // the 5.10 kernel will compile with this binutils version
+            Some(&kernel_version),
             jobs,
             false,
         )?
@@ -266,6 +287,7 @@ pub fn get_image(
             "15.2.0".into(),
             "2.42".into(),
             "2.45".into(),
+            Some(&kernel_version),
             jobs,
             false,
         )?

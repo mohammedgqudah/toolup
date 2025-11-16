@@ -8,6 +8,7 @@ use crate::{
     download::{self, sysroots_dir},
     gcc::GCC,
     glibc::GlibcVersion,
+    linux::KernelVersion,
     musl::MuslVersion,
 };
 
@@ -414,6 +415,9 @@ pub struct Toolchain {
     pub binutils: Binutils,
     pub gcc: GCC,
     pub libc: Libc,
+    /// The kernel version to install headers from into the sysroot, only use this when installing
+    /// a toolchain to build the kernel itself.
+    pub kernel: Option<KernelVersion>,
 }
 
 impl Toolchain {
@@ -423,6 +427,23 @@ impl Toolchain {
             binutils,
             gcc,
             libc,
+            kernel: None,
+        }
+    }
+
+    pub fn new_with_kernel(
+        target: Target,
+        binutils: Binutils,
+        gcc: GCC,
+        libc: Libc,
+        kernel_version: KernelVersion,
+    ) -> Self {
+        Self {
+            target,
+            binutils,
+            gcc,
+            libc,
+            kernel: Some(kernel_version),
         }
     }
 

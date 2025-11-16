@@ -4,6 +4,7 @@ use anyhow::{Context, Result, anyhow};
 
 use crate::{
     download::download_and_decompress,
+    gnu_make::install_make,
     make::{run_configure_with_env_in, run_make_with_env_in},
     profile::{Libc, Toolchain},
 };
@@ -31,6 +32,12 @@ pub fn install_glibc_sysroot(toolchain: &Toolchain) -> Result<()> {
             "`install_glibc_sysroot` called with a musl toolchain"
         ));
     };
+
+    // workaround: we need an old Make version to compile this glibc version.
+    // see: https://stackoverflow.com/a/77107152/8701101
+    if glibc_version <= GlibcVersion::from_str("2.30").unwrap() {
+        install_make("4.3", toolchain)?;
+    }
 
     let glibc_dir = download_glibc(glibc_version.to_string())?;
     let objdir = glibc_dir.join(format!("objdir-arch-{}", toolchain.id()));

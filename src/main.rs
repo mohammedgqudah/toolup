@@ -9,6 +9,7 @@ mod cpio;
 mod download;
 mod gcc;
 mod glibc;
+mod gnu_make;
 mod linux;
 mod make;
 mod musl;
@@ -25,6 +26,7 @@ use crate::{
     download::cache_dir,
     gcc::{GCC, GCCVersion, GccStage, Sysroot},
     glibc::GlibcVersion,
+    linux::KernelVersion,
     musl::MuslVersion,
     profile::{Abi, Libc, Target, Toolchain},
     qemu::start_vm,
@@ -86,6 +88,7 @@ fn install_toolchain(
     gcc_str: String,
     libc_str: String,
     binutils_str: String,
+    kernel_version: Option<&KernelVersion>,
     jobs: u64,
     force: bool,
 ) -> Result<Toolchain> {
@@ -96,7 +99,12 @@ fn install_toolchain(
         Abi::Musl => Libc::Musl(MuslVersion::from_str(&libc_str)?),
         _ => Libc::Glibc(GlibcVersion::from_str(&libc_str)?),
     };
-    let toolchain = Toolchain::new(target, binutils, gcc, libc);
+
+    let toolchain = if let Some(kernel_version) = kernel_version {
+        Toolchain::new_with_kernel(target, binutils, gcc, libc, kernel_version.clone())
+    } else {
+        Toolchain::new(target, binutils, gcc, libc)
+    };
 
     println!("{}", toolchain);
 
@@ -154,7 +162,7 @@ fn main() -> Result<()> {
             binutils,
             jobs,
         } => {
-            install_toolchain(toolchain, gcc, libc, binutils, jobs, false)?;
+            install_toolchain(toolchain, gcc, libc, binutils, None, jobs, false)?;
         }
         Commands::Linux {
             version,
