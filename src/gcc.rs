@@ -1,15 +1,13 @@
 use std::{
+    fmt::Display,
     ops::{Deref, DerefMut},
     path::PathBuf,
+    str::FromStr,
 };
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 
-use crate::{
-    download::{cross_prefix, download_and_decompress},
-    make::{run_configure_in, run_make_in},
-    profile::Target,
-};
+use crate::{download::download_and_decompress, make::run_command_in, profile::Toolchain};
 
 pub struct Sysroot(pub PathBuf);
 impl Deref for Sysroot {
@@ -30,13 +28,8 @@ pub enum GccStage {
     Final(Option<Sysroot>),
 }
 
-pub fn install_gcc(
-    target: &Target,
-    version: impl AsRef<str>,
-    jobs: u64,
-    stage: GccStage,
-) -> Result<()> {
-    let gcc_name = format!("gcc-{}", version.as_ref());
+pub fn install_gcc(toolchain: &Toolchain, jobs: u64, stage: GccStage) -> Result<()> {
+    let gcc_name = format!("gcc-{}", toolchain.gcc.version);
     let tarball = format!("{gcc_name}.tar.xz");
 
     let gcc_dir = download_and_decompress(
@@ -50,15 +43,18 @@ pub fn install_gcc(
     match stage {
         GccStage::Stage1 => {
             log::info!("=> stage1 gcc");
-            let objdir = gcc_dir.join(format!("objdir-stage1-arch-{}", target.to_string()));
+            let objdir = gcc_dir.join(format!("objdir-stage1-{}", toolchain.id()));
             std::fs::create_dir_all(&objdir).context("failed to create an objdir for the arch")?;
 
-            let t = format!("--target={}", target.to_string());
-            run_configure_in(
+            let env = vec![("PATH".into(), toolchain.env_path()?)];
+
+            run_command_in(
                 &objdir,
+                "configure",
+                objdir.parent().unwrap().join("configure"),
                 &[
-                    t.as_str(),
-                    format!("--prefix={}", cross_prefix()?.display()).as_str(),
+                    format!("--target={}", toolchain.target).as_str(),
+                    format!("--prefix={}", toolchain.dir()?.display()).as_str(),
                     "--disable-nls",
                     "--enable-languages=c,c++".into(),
                     "--without-headers".into(),
@@ -69,21 +65,48 @@ pub fn install_gcc(
                     "--disable-libquadmath".into(),
                     "--disable-multilib".into(),
                 ],
+                Some(env.clone()),
             )?;
-            run_make_in(&objdir, &["all-gcc", "-j", jobs.as_str()])?;
-            run_make_in(&objdir, &["install-gcc", "-j", jobs.as_str()])?;
-            run_make_in(&objdir, &["all-target-libgcc", "-j", jobs.as_str()])?;
-            run_make_in(&objdir, &["install-target-libgcc", "-j", jobs.as_str()])?;
+            run_command_in(
+                &objdir,
+                "make",
+                "make",
+                &["all-gcc", "-j", jobs.as_str()],
+                Some(env.clone()),
+            )?;
+            run_command_in(
+                &objdir,
+                "make",
+                "make",
+                &["install-gcc", "-j", jobs.as_str()],
+                Some(env.clone()),
+            )?;
+            run_command_in(
+                &objdir,
+                "make",
+                "make",
+                &["all-target-libgcc", "-j", jobs.as_str()],
+                Some(env.clone()),
+            )?;
+            run_command_in(
+                &objdir,
+                "make",
+                "make",
+                &["install-target-libgcc", "-j", jobs.as_str()],
+                Some(env.clone()),
+            )?;
         }
         GccStage::Final(maybe_sysroot) => {
             log::info!("=> final stage gcc");
 
-            let objdir = gcc_dir.join(format!("objdir-final-arch-{}", target.to_string()));
+            let objdir = gcc_dir.join(format!("objdir-final-{}", toolchain.id()));
             std::fs::create_dir_all(&objdir).context("failed to create an objdir for the arch")?;
 
+            let env = vec![("PATH".into(), toolchain.env_path()?)];
+
             let mut args: Vec<String> = vec![
-                format!("--target={}", target.to_string()),
-                format!("--prefix={}", cross_prefix()?.display()),
+                format!("--target={}", toolchain.target),
+                format!("--prefix={}", toolchain.dir()?.display()),
                 "--disable-nls".into(),
                 "--enable-languages=c,c++".into(),
                 "--disable-multilib".into(),
@@ -93,12 +116,92 @@ pub fn install_gcc(
                 args.push(format!("--with-sysroot={}", p));
             }
 
-            run_configure_in(&objdir, args.as_ref())?;
+            run_command_in(
+                &objdir,
+                "configure",
+                objdir.parent().unwrap().join("configure"),
+                &args,
+                Some(env.clone()),
+            )?;
 
             // hosted/newlib: build everything (gcc, libgcc, libstdc++)
-            run_make_in(&objdir, &["-j", jobs.as_str()])?;
-            run_make_in(&objdir, &["install", "-j", jobs.as_str()])?;
+            run_command_in(
+                &objdir,
+                "make",
+                "make",
+                &["-j", jobs.as_str()],
+                Some(env.clone()),
+            )?;
+            run_command_in(
+                &objdir,
+                "make",
+                "make",
+                &["install", "-j", jobs.as_str()],
+                Some(env.clone()),
+            )?;
         }
     }
     Ok(())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct GCCVersion {
+    major: u64,
+    minor: u64,
+    patch: u64,
+}
+
+impl FromStr for GCCVersion {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        let parts: Vec<&str> = s.split(".").collect();
+
+        fn parse_part(s: &str) -> anyhow::Result<u64> {
+            s.parse().context(format!("`{}` is not a number", s))
+        }
+
+        match parts.as_slice() {
+            [major, minor, patch] => Ok(GCCVersion {
+                major: parse_part(major)?,
+                minor: parse_part(minor)?,
+                patch: parse_part(patch)?,
+            }),
+            _ => Err(anyhow!("`{}` is an invalid version", s)),
+        }
+    }
+}
+
+impl GCCVersion {
+    pub fn new(major: u64, minor: u64, patch: u64) -> Self {
+        Self {
+            major,
+            minor,
+            patch,
+        }
+    }
+}
+
+impl Display for GCCVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+    }
+}
+
+pub struct GCC {
+    pub version: GCCVersion,
+}
+
+impl Default for GCC {
+    fn default() -> Self {
+        Self {
+            version: GCCVersion::new(15, 2, 0),
+        }
+    }
+}
+
+impl GCC {
+    pub fn new(version: GCCVersion) -> Self {
+        Self { version }
+    }
 }

@@ -21,9 +21,12 @@ use binutils::install_binutils;
 use gcc::install_gcc;
 
 use crate::{
+    binutils::{Binutils, BinutilsVersion},
     download::cache_dir,
-    gcc::{GccStage, Sysroot},
-    profile::{Abi, Target},
+    gcc::{GCC, GCCVersion, GccStage, Sysroot},
+    glibc::GlibcVersion,
+    musl::MuslVersion,
+    profile::{Abi, Libc, Target, Toolchain},
     qemu::start_vm,
     sysroot::setup_sysroot,
 };
@@ -41,6 +44,10 @@ enum Commands {
         toolchain: String,
         #[arg(long, help = "gcc version", default_value = "15.2.0")]
         gcc: String,
+        #[arg(long, help = "libc version", default_value = "2.42")]
+        libc: String,
+        #[arg(long, help = "binutils version", default_value = "2.45")]
+        binutils: String,
         #[arg(short, long, default_value_t = 10)]
         jobs: u64,
     },
@@ -74,45 +81,51 @@ enum CacheAction {
 /// Install a toolchain.
 ///
 /// use `force` to forcefully re-install a toolchain if it was already installed.
-fn install_toolchain(toolchain_str: String, gcc: String, jobs: u64, force: bool) -> Result<()> {
-    let toolchain = Target::from_str(&toolchain_str)?;
+fn install_toolchain(
+    target_str: String,
+    gcc_str: String,
+    libc_str: String,
+    binutils_str: String,
+    jobs: u64,
+    force: bool,
+) -> Result<Toolchain> {
+    let target = Target::from_str(&target_str)?;
+    let binutils = Binutils::new(BinutilsVersion::from_str(&binutils_str)?);
+    let gcc = GCC::new(GCCVersion::from_str(&gcc_str)?);
+    let libc = match target.abi {
+        Abi::Musl => Libc::Musl(MuslVersion::from_str(&libc_str)?),
+        _ => Libc::Glibc(GlibcVersion::from_str(&libc_str)?),
+    };
+    let toolchain = Toolchain::new(target, binutils, gcc, libc);
 
-    if download::cross_prefix()?
-        .join("bin")
-        .join(format!("{}-gcc", toolchain_str))
-        .exists()
-        && !force
-    {
-        // toolchain already installed
-        return Ok(());
+    println!("{}", toolchain);
+
+    if toolchain.gcc_bin()?.exists() && !force {
+        log::info!("toolchain is already installed");
+        return Ok(toolchain);
     }
 
-    match toolchain {
+    match target {
         // freestanding
         Target {
             abi: Abi::Elf | Abi::Eabihf | Abi::Eabi,
             ..
         } => {
             install_binutils(&toolchain, jobs)?;
-            install_gcc(&toolchain, &gcc, jobs, GccStage::Stage1)?;
+            install_gcc(&toolchain, jobs, GccStage::Stage1)?;
         }
         Target {
             abi: Abi::Gnu | Abi::GnuEabi | Abi::GnuEabihf | Abi::Musl,
             ..
         } => {
             install_binutils(&toolchain, jobs)?;
-            let sysroot = setup_sysroot(&toolchain, &gcc, jobs)?;
-            install_gcc(
-                &toolchain,
-                &gcc,
-                jobs,
-                GccStage::Final(Some(Sysroot(sysroot))),
-            )?;
+            let sysroot = setup_sysroot(&toolchain, jobs)?;
+            install_gcc(&toolchain, jobs, GccStage::Final(Some(Sysroot(sysroot))))?;
         }
         _ => unimplemented!(),
     };
 
-    Ok(())
+    Ok(toolchain)
 }
 
 fn main() -> Result<()> {
@@ -137,9 +150,11 @@ fn main() -> Result<()> {
         Commands::Toolchain {
             toolchain,
             gcc,
+            libc,
+            binutils,
             jobs,
         } => {
-            install_toolchain(toolchain, gcc, jobs, false)?;
+            install_toolchain(toolchain, gcc, libc, binutils, jobs, false)?;
         }
         Commands::Linux {
             version,
@@ -149,9 +164,16 @@ fn main() -> Result<()> {
             defconfig,
         } => {
             let target = Target::from_str(toolchain.as_str())?;
-            install_toolchain(toolchain, "15.2.0".into(), jobs, false)?;
-            let kernel_image = linux::get_image(&target, &version, jobs, menuconfig, defconfig)?;
-            let rootfs = busybox::build_rootfs(&target)?;
+            let toolchain = install_toolchain(
+                toolchain,
+                "15.2.0".into(),
+                "2.35".into(),
+                "2.34".into(),
+                jobs,
+                false,
+            )?;
+            let kernel_image = linux::get_image(&toolchain, &version, jobs, menuconfig, defconfig)?;
+            let rootfs = busybox::build_rootfs(&toolchain)?;
             start_vm(&target, kernel_image, rootfs)?;
         }
         Commands::Cache { action } => match action {

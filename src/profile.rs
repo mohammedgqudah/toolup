@@ -1,5 +1,15 @@
+use std::{fmt::Display, path::PathBuf, str::FromStr};
+
 use anyhow::{Result, anyhow};
-use std::str::FromStr;
+use colored::Colorize;
+
+use crate::{
+    binutils::Binutils,
+    download::{self, sysroots_dir},
+    gcc::GCC,
+    glibc::GlibcVersion,
+    musl::MuslVersion,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Arch {
@@ -187,8 +197,8 @@ pub struct Target {
     pub abi: Abi,
 }
 
-impl ToString for Target {
-    fn to_string(&self) -> String {
+impl Target {
+    pub fn to_target_string(&self) -> String {
         match self {
             Target {
                 arch: Arch::Bpf, ..
@@ -373,5 +383,114 @@ mod test {
         );
 
         Ok(())
+    }
+}
+
+impl Display for Target {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_target_string())
+    }
+}
+
+pub enum Libc {
+    Glibc(GlibcVersion),
+    Musl(MuslVersion),
+}
+
+impl Display for Libc {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Libc::Glibc(glibc_version) => {
+                write!(f, "glibc-{}", glibc_version)
+            }
+            Libc::Musl(musl_version) => {
+                write!(f, "musl-{}", musl_version)
+            }
+        }
+    }
+}
+pub struct Toolchain {
+    pub target: Target,
+    pub binutils: Binutils,
+    pub gcc: GCC,
+    pub libc: Libc,
+}
+
+impl Toolchain {
+    pub fn new(target: Target, binutils: Binutils, gcc: GCC, libc: Libc) -> Self {
+        Self {
+            target,
+            binutils,
+            gcc,
+            libc,
+        }
+    }
+
+    /// Returns the location of the `gcc` binary for this toolchain.
+    ///
+    /// # Notes
+    /// The binary may not exist, this method returns the location where the binary should be.
+    pub fn gcc_bin(&self) -> Result<PathBuf> {
+        Ok(self
+            .bin_dir()?
+            .join(format!("{}-gcc", self.target.to_target_string())))
+    }
+
+    /// Returns the directory path for the toolchain. This is where GCC and binutils will be
+    /// installed.
+    pub fn dir(&self) -> Result<PathBuf> {
+        let name = format!(
+            "{}-gcc-{}-bin-{}-{}",
+            self.target, self.gcc.version, self.binutils.version, self.libc
+        );
+
+        Ok(download::cross_prefix()?.join(name))
+    }
+
+    pub fn id(&self) -> String {
+        format!(
+            "{}-gcc-{}-bin-{}-{}",
+            self.target, self.gcc.version, self.binutils.version, self.libc
+        )
+    }
+
+    /// Returns the location of the `bin` directory. May be used to inside the `PATH` environment
+    /// variable.
+    pub fn bin_dir(&self) -> Result<PathBuf> {
+        Ok(self.dir()?.join("bin"))
+    }
+
+    /// Returns the sysroot path.
+    ///
+    /// The sysroot has the kerenl headers and a c library.
+    pub fn sysroot(&self) -> Result<PathBuf> {
+        Ok(sysroots_dir()?.join(format!("sysroot-{}-{}", self.target, self.libc)))
+    }
+
+    pub fn env_path(&self) -> Result<String> {
+        let base = std::env::var("PATH").unwrap();
+        let mut paths = std::env::split_paths(&base).collect::<Vec<_>>();
+        paths.insert(0, self.bin_dir()?.to_str().unwrap().into());
+
+        Ok(std::env::join_paths(paths)?.to_str().unwrap().into())
+    }
+}
+
+impl Display for Toolchain {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", "Toolchain: ".bold())?;
+        writeln!(f, "{}", self.target.to_string().green())?;
+
+        write!(f, "{}", "├─ ".yellow())?;
+        write!(f, "{}", "GCC: ".bold())?;
+        writeln!(f, "{}", self.gcc.version)?;
+
+        write!(f, "{}", "├─ ".yellow())?;
+        write!(f, "{}", "Binutils: ".bold())?;
+        writeln!(f, "{}", self.binutils.version)?;
+
+        write!(f, "{}", "├─ ".yellow())?;
+        write!(f, "{}", "Libc: ".bold())?;
+        writeln!(f, "{}", self.libc)
     }
 }
