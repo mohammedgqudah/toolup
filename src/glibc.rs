@@ -33,7 +33,7 @@ pub fn install_glibc_sysroot(toolchain: &Toolchain) -> Result<()> {
     };
 
     let glibc_dir = download_glibc(glibc_version.to_string())?;
-    let objdir = glibc_dir.join(format!("objdir-arch-{}", toolchain.target));
+    let objdir = glibc_dir.join(format!("objdir-arch-{}", toolchain.id()));
     std::fs::create_dir_all(&objdir)?;
 
     let stdout = Command::new(glibc_dir.join("scripts").join("config.guess"))

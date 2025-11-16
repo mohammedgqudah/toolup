@@ -10,6 +10,7 @@ use anyhow::{Context, Result, anyhow};
 
 use crate::{
     download::{download_and_decompress, linux_images_dir},
+    install_toolchain,
     make::{run_make_in, run_make_with_env_in},
     profile::{Arch, Target, Toolchain},
 };
@@ -112,6 +113,7 @@ pub fn config(
             .current_dir(workdir)
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
+            .envs(env.clone())
             .status()
             .context("running menuconfig")?;
     }
@@ -212,11 +214,8 @@ pub fn build(
         args.push("EXTRA_CFLAGS=-Wno-error=use-after-free -Wno-use-after-free".into());
     }
 
-    if kernel_version <= KernelVersion::from_str("5.10").unwrap() {
-        // TODO: we need an old binutils for objtool to work
-        // TODO: I need to work on supporting multiple versions of the same toolchain.
-        // Or, pass CONFIG_STACK_VALIDATION=n, but I need to create a function to programmatically
-        // configure the kernel.
+    if kernel_version <= KernelVersion::from_str("5.1").unwrap() {
+        kcflags.push("-Wno-error=redundant-decls");
     }
 
     if !kcflags.is_empty() {
@@ -230,15 +229,47 @@ pub fn build_out(version: impl AsRef<str>, target: &Target) -> Result<PathBuf> {
     Ok(linux_images_dir()?.join(format!("{}-{}", target.to_string(), version.as_ref())))
 }
 
+/// Returns a tuple consisting of a kernel image and the toolchain used to compile it.
+///
+/// The toolchain will be selected based on the kernel version.
 pub fn get_image(
-    toolchain: &Toolchain,
+    target: &Target,
     version: impl AsRef<str>,
     jobs: u64,
     menuconfig: bool,
     defconfig: bool,
-) -> Result<PathBuf> {
-    let _ = toolchain;
+) -> Result<(PathBuf, Toolchain)> {
     log::info!("=> kernel image");
+
+    let kernel_version = KernelVersion::from_str(version.as_ref())?;
+    let toolchain = if kernel_version <= KernelVersion::from_str("5.1").unwrap() {
+        install_toolchain(
+            target.to_string(),
+            "7.5.0".into(),
+            "2.30".into(),
+            "2.33.1".into(),
+            jobs,
+            false,
+        )?
+    } else if kernel_version <= KernelVersion::from_str("5.10").unwrap() {
+        install_toolchain(
+            target.to_string(),
+            "15.2.0".into(),
+            "2.35".into(),
+            "2.34".into(), // the 5.10 kernel will compile with this binutils version
+            jobs,
+            false,
+        )?
+    } else {
+        install_toolchain(
+            target.to_string(),
+            "15.2.0".into(),
+            "2.42".into(),
+            "2.45".into(),
+            jobs,
+            false,
+        )?
+    };
 
     let out = build_out(&version, &toolchain.target)?;
     let boot_dir = out
@@ -284,12 +315,12 @@ pub fn get_image(
     toolup_image.add_extension(config_hash.to_string());
 
     if toolup_image.exists() {
-        return Ok(toolup_image);
+        return Ok((toolup_image, toolchain));
     }
 
     build(&version, &toolchain, workdir.clone(), jobs, out)?;
 
     std::fs::copy(out_image, &toolup_image).context("failed to copy kernel image")?;
 
-    Ok(toolup_image)
+    Ok((toolup_image, toolchain))
 }

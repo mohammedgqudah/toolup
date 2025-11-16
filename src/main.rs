@@ -164,15 +164,8 @@ fn main() -> Result<()> {
             defconfig,
         } => {
             let target = Target::from_str(toolchain.as_str())?;
-            let toolchain = install_toolchain(
-                toolchain,
-                "15.2.0".into(),
-                "2.35".into(),
-                "2.34".into(),
-                jobs,
-                false,
-            )?;
-            let kernel_image = linux::get_image(&toolchain, &version, jobs, menuconfig, defconfig)?;
+            let (kernel_image, toolchain) =
+                linux::get_image(&target, &version, jobs, menuconfig, defconfig)?;
             let rootfs = busybox::build_rootfs(&toolchain)?;
             start_vm(&target, kernel_image, rootfs)?;
         }
