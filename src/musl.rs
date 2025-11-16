@@ -1,12 +1,11 @@
-use std::path::PathBuf;
+use std::{fmt::Display, path::PathBuf, str::FromStr};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 
 use crate::{
-    download::{cross_prefix, download_and_decompress},
-    gcc::Sysroot,
+    download::download_and_decompress,
     make::{run_configure_with_env_in, run_make_with_env_in},
-    profile::Target,
+    profile::{Libc, Toolchain},
 };
 
 pub fn download_musl(version: impl AsRef<str>) -> Result<PathBuf> {
@@ -24,20 +23,26 @@ pub fn download_musl(version: impl AsRef<str>) -> Result<PathBuf> {
     Ok(musl_dir)
 }
 
-pub fn install_musl_sysroot(target: &Target, sysroot: Sysroot) -> Result<()> {
+pub fn install_musl_sysroot(toolchain: &Toolchain) -> Result<()> {
     log::info!("=> install musl");
 
-    let musl_dir = download_musl("1.2.5")?;
-    let objdir = musl_dir.join(format!("objdir-arch-{}", target.to_string()));
+    let Libc::Musl(musl_version) = toolchain.libc else {
+        return Err(anyhow!(
+            "`install_musl_sysroot` called with a glibc toolchain"
+        ));
+    };
+
+    let musl_dir = download_musl(musl_version.to_string())?;
+    let objdir = musl_dir.join(format!("objdir-arch-{}", toolchain.target));
     std::fs::create_dir_all(&objdir)?;
 
     let args = vec![
-        format!("--host={}", target.to_string()),
+        format!("--host={}", toolchain.target),
         "--prefix=/usr".into(),
         "--syslibdir=/lib".into(),
         "--disable-werror".into(),
     ];
-    let prefix = target.to_string();
+    let prefix = toolchain.target;
 
     let env: Vec<(String, String)> = vec![
         ("BUILD_CC".into(), "gcc".into()),
@@ -50,14 +55,7 @@ pub fn install_musl_sysroot(target: &Target, sysroot: Sysroot) -> Result<()> {
         ("RANLIB".into(), format!("{prefix}-ranlib")),
         ("LD".into(), format!("{prefix}-ld")),
         ("READELF".into(), format!("{prefix}-readelf")),
-        (
-            "PATH".into(),
-            format!(
-                "{}:{}",
-                cross_prefix()?.join("bin").display(),
-                std::env::var("PATH")?
-            ),
-        ),
+        ("PATH".into(), toolchain.env_path()?),
     ];
     run_configure_with_env_in(&objdir, &args, env.clone())?;
 
@@ -66,7 +64,7 @@ pub fn install_musl_sysroot(target: &Target, sysroot: Sysroot) -> Result<()> {
         &objdir,
         &[
             "install",
-            &format!("DESTDIR={}", sysroot.display()),
+            &format!("DESTDIR={}", toolchain.sysroot()?.display()),
             "-j",
             "28",
         ],
@@ -74,4 +72,38 @@ pub fn install_musl_sysroot(target: &Target, sysroot: Sysroot) -> Result<()> {
     )?;
 
     Ok(())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct MuslVersion {
+    major: u64,
+    minor: u64,
+    patch: u64,
+}
+
+impl FromStr for MuslVersion {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        let parts: Vec<&str> = s.split(".").collect();
+
+        fn parse_part(s: &str) -> anyhow::Result<u64> {
+            s.parse().context(format!("`{}` is not a number", s))
+        }
+
+        match parts.as_slice() {
+            [major, minor, patch] => Ok(MuslVersion {
+                major: parse_part(major)?,
+                minor: parse_part(minor)?,
+                patch: parse_part(patch)?,
+            }),
+            _ => Err(anyhow!("`{}` is an invalid version", s)),
+        }
+    }
+}
+
+impl Display for MuslVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+    }
 }

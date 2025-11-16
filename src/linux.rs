@@ -1,7 +1,7 @@
 use std::{
     fs::OpenOptions,
     io::Read,
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::{Command, Stdio},
     str::FromStr,
 };
@@ -9,9 +9,9 @@ use std::{
 use anyhow::{Context, Result, anyhow};
 
 use crate::{
-    download::{cross_prefix, download_and_decompress, linux_images_dir},
+    download::{download_and_decompress, linux_images_dir},
     make::{run_make_in, run_make_with_env_in},
-    profile::{Arch, Target},
+    profile::{Arch, Target, Toolchain},
 };
 
 pub fn download_linux(version: impl AsRef<str>) -> Result<PathBuf> {
@@ -31,23 +31,24 @@ pub fn download_linux(version: impl AsRef<str>) -> Result<PathBuf> {
     Ok(linux_dir)
 }
 
-pub fn install_headers(target: &Target, sysroot: impl AsRef<Path>) -> Result<()> {
+pub fn install_headers(toolchain: &Toolchain) -> Result<()> {
     log::info!("=> install linux headers");
     let kernel_src = download_linux("6.17.7")?;
 
     run_make_in(
         kernel_src,
         &[
-            format!("ARCH={}", target.arch.to_kernel_arch()).as_str(),
+            format!("ARCH={}", toolchain.target.arch.to_kernel_arch()).as_str(),
             "headers_install",
-            format!("INSTALL_HDR_PATH={}/usr", sysroot.as_ref().display()).as_str(),
+            format!("INSTALL_HDR_PATH={}/usr", toolchain.sysroot()?.display()).as_str(),
         ],
     )?;
+
     Ok(())
 }
 
 pub fn config(
-    target: &Target,
+    toolchain: &Toolchain,
     workdir: PathBuf,
     out: PathBuf,
     menuconfig: bool,
@@ -55,14 +56,7 @@ pub fn config(
 ) -> Result<()> {
     log::info!("=> kernel defconfig");
 
-    let env: Vec<(String, String)> = vec![(
-        "PATH".into(),
-        format!(
-            "{}:{}",
-            cross_prefix()?.join("bin").display(),
-            std::env::var("PATH")?
-        ),
-    )];
+    let env: Vec<(String, String)> = vec![("PATH".into(), toolchain.env_path()?)];
 
     //let defconfig = if arch == "x86" {
     //    "i386_defconfig"
@@ -75,7 +69,7 @@ pub fn config(
     //} else {
     //    "defconfig"
     //};
-    let defconfig = match target.arch {
+    let defconfig = match toolchain.target.arch {
         Arch::I686 => "i386_defconfig",
         _ => "defconfig",
     };
@@ -90,7 +84,7 @@ pub fn config(
         run_make_with_env_in(
             &workdir,
             &[
-                format!("ARCH={}", target.arch.to_kernel_arch()).as_str(),
+                format!("ARCH={}", toolchain.target.arch.to_kernel_arch()).as_str(),
                 "mrproper",
             ],
             env.clone(),
@@ -99,9 +93,9 @@ pub fn config(
         run_make_with_env_in(
             &workdir,
             &[
-                format!("ARCH={}", target.arch.to_kernel_arch()).as_str(),
+                format!("ARCH={}", toolchain.target.arch.to_kernel_arch()).as_str(),
                 format!("O={}", out.display()).as_str(),
-                format!("CROSS_COMPILE={}-", target.to_string()).as_str(),
+                format!("CROSS_COMPILE={}-", toolchain.target).as_str(),
                 defconfig,
             ],
             env.clone(),
@@ -110,9 +104,9 @@ pub fn config(
     if menuconfig {
         Command::new("make")
             .args(&[
-                format!("ARCH={}", target.arch.to_kernel_arch()).as_str(),
+                format!("ARCH={}", toolchain.target.arch.to_kernel_arch()).as_str(),
                 format!("O={}", out.display()).as_str(),
-                format!("CROSS_COMPILE={}-", target.to_string()).as_str(),
+                format!("CROSS_COMPILE={}-", toolchain.target).as_str(),
                 "menuconfig",
             ])
             .current_dir(workdir)
@@ -164,25 +158,18 @@ impl ToString for KernelVersion {
 
 pub fn build(
     version: impl AsRef<str>,
-    target: &Target,
+    toolchain: &Toolchain,
     workdir: PathBuf,
     jobs: u64,
     out: PathBuf,
 ) -> Result<()> {
     log::info!("=> kerenl build");
 
-    let mut env: Vec<(String, String)> = vec![(
-        "PATH".into(),
-        format!(
-            "{}:{}",
-            cross_prefix()?.join("bin").display(),
-            std::env::var("PATH")?
-        ),
-    )];
+    let mut env: Vec<(String, String)> = vec![("PATH".into(), toolchain.env_path()?)];
     let mut args: Vec<String> = vec![
         format!("O={}", out.display()),
-        format!("ARCH={}", target.arch.to_kernel_arch()),
-        format!("CROSS_COMPILE={}-", target.to_string()),
+        format!("ARCH={}", toolchain.target.arch.to_kernel_arch()),
+        format!("CROSS_COMPILE={}-", toolchain.target.to_string()),
         format!("-j{}", jobs),
     ];
 
@@ -244,21 +231,22 @@ pub fn build_out(version: impl AsRef<str>, target: &Target) -> Result<PathBuf> {
 }
 
 pub fn get_image(
-    target: &Target,
+    toolchain: &Toolchain,
     version: impl AsRef<str>,
     jobs: u64,
     menuconfig: bool,
     defconfig: bool,
 ) -> Result<PathBuf> {
+    let _ = toolchain;
     log::info!("=> kernel image");
 
-    let out = build_out(&version, target)?;
+    let out = build_out(&version, &toolchain.target)?;
     let boot_dir = out
         .join("arch")
-        .join(target.arch.to_kernel_arch())
+        .join(toolchain.target.arch.to_kernel_arch())
         .join("boot");
 
-    let out_image = match target.arch {
+    let out_image = match toolchain.target.arch {
         Arch::X86_64 | Arch::I686 => boot_dir.join("bzImage"),
         Arch::Armv7 => boot_dir.join("zImage"),
         Arch::Aarch64 => boot_dir.join("Image"),
@@ -275,7 +263,13 @@ pub fn get_image(
     };
 
     let workdir = download_linux(&version)?;
-    config(target, workdir.clone(), out.clone(), menuconfig, defconfig)?;
+    config(
+        &toolchain,
+        workdir.clone(),
+        out.clone(),
+        menuconfig,
+        defconfig,
+    )?;
 
     let mut config_file = OpenOptions::new()
         .read(true)
@@ -293,7 +287,7 @@ pub fn get_image(
         return Ok(toolup_image);
     }
 
-    build(&version, target, workdir.clone(), jobs, out)?;
+    build(&version, &toolchain, workdir.clone(), jobs, out)?;
 
     std::fs::copy(out_image, &toolup_image).context("failed to copy kernel image")?;
 
