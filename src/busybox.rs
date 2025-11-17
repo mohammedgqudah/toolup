@@ -7,7 +7,7 @@ use std::{fs::OpenOptions, path::PathBuf};
 use crate::cpio::pack_rootfs;
 use crate::download::cache_dir;
 use crate::download::download_and_decompress;
-use crate::make::run_make_with_env_in;
+use crate::commands::run_make_with_env_in;
 use crate::profile::Toolchain;
 
 pub fn download_busybox() -> Result<PathBuf> {

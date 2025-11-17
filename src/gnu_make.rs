@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 
-use crate::{download::download_and_decompress, make::run_command_in, profile::Toolchain};
+use crate::{download::download_and_decompress, commands::run_command_in, profile::Toolchain};
 
 pub fn download_make(version: impl AsRef<str>) -> Result<PathBuf> {
     log::info!("=> download make {}", version.as_ref());

@@ -4,7 +4,7 @@ use anyhow::{Context, Result, anyhow};
 
 use crate::{
     download::download_and_decompress,
-    make::{run_configure_in, run_make_in},
+    commands::{run_configure_in, run_make_in},
     profile::Toolchain,
 };
 

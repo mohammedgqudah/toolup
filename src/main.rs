@@ -13,7 +13,7 @@ mod gcc;
 mod glibc;
 mod gnu_make;
 mod linux;
-mod make;
+mod commands;
 mod musl;
 mod profile;
 mod qemu;

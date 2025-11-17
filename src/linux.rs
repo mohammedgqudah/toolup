@@ -11,7 +11,7 @@ use anyhow::{Context, Result, anyhow};
 use crate::{
     download::{download_and_decompress, linux_images_dir},
     install_toolchain,
-    make::{run_make_in, run_make_with_env_in},
+    commands::{run_make_in, run_make_with_env_in},
     profile::{Arch, Target, Toolchain},
 };
 

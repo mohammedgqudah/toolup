@@ -7,7 +7,7 @@ use std::{
 
 use anyhow::{Context, Result, anyhow};
 
-use crate::{download::download_and_decompress, make::run_command_in, profile::Toolchain};
+use crate::{download::download_and_decompress, commands::run_command_in, profile::Toolchain};
 
 pub struct Sysroot(pub PathBuf);
 impl Deref for Sysroot {
