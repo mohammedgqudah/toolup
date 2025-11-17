@@ -109,7 +109,10 @@ fn install_toolchain(
     println!("{}", toolchain);
     log::info!("export PATH=\"{}:$PATH\"", toolchain.bin_dir()?.display());
     log::info!("export SYSROOT={}", toolchain.sysroot()?.display());
-    log::info!("export PKG_CONFIG_SYSROOT_DIR={}", toolchain.sysroot()?.display());
+    log::info!(
+        "export PKG_CONFIG_SYSROOT_DIR={}",
+        toolchain.sysroot()?.display()
+    );
     log::info!("export TARGET={}", toolchain.target);
     log::info!("");
 

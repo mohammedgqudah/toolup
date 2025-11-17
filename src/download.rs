@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
 use flate2::read::GzDecoder;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use lzma::LzmaReader as XzDecoder;
 use std::{
     fs::{self, File},
     io::{self, BufReader},
@@ -9,6 +8,7 @@ use std::{
     time::Duration,
 };
 use tar::Archive;
+use xz2::bufread::XzDecoder;
 
 pub fn cache_dir() -> Result<PathBuf> {
     let cache =
@@ -140,9 +140,7 @@ pub fn decompress_tar<P: AsRef<Path>, Q: AsRef<Path>>(tar_xz_path: P, dest_dir: 
     let reader = BufReader::new(file);
     let reader = pb_entry.wrap_read(reader);
     let decoder: Box<dyn std::io::Read> = match tar_xz_path.extension().unwrap().to_str().unwrap() {
-        "xz" => Box::new(
-            XzDecoder::new_decompressor(reader).context("failed to create new decompressor")?,
-        ),
+        "xz" => Box::new(XzDecoder::new_multi_decoder(reader)),
         "gz" => Box::new(GzDecoder::new(reader)),
         "bz2" => Box::new(bzip2::read::BzDecoder::new(reader)),
         _ => unimplemented!(),

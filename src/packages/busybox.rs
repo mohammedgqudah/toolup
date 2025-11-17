@@ -116,18 +116,27 @@ fn copy_dir_to<P: AsRef<Path>>(src: P, target_root: P) -> Result<()> {
     let target_root = target_root.as_ref();
 
     let target_dir = target_root.join(src.file_name().context("`src` is an invalid path")?);
-    std::fs::create_dir_all(&target_dir)?;
+    std::fs::create_dir_all(&target_dir).context(format!(
+        "failed to create target directory `{}`",
+        target_dir.display()
+    ))?;
 
     // Recursively walk through all entries
-    for entry in std::fs::read_dir(src)? {
-        let entry = entry?;
+    for entry in
+        std::fs::read_dir(src).context(format!("failed to read directory {}", src.display()))?
+    {
+        let entry = entry.context("failed to list entry")?;
         let path = entry.path();
         let target_path = target_dir.join(entry.file_name());
 
         if path.is_dir() {
             copy_dir_to(&path, &target_dir)?;
         } else {
-            std::fs::copy(&path, &target_path)?;
+            std::fs::copy(&path, &target_path).context(format!(
+                "failed to copy {} to {}",
+                path.display(),
+                target_path.display()
+            ))?;
         }
     }
 
