@@ -1,12 +1,12 @@
-use std::{path::PathBuf, process::Command};
+use std::{fmt::Display, path::PathBuf, process::Command, str::FromStr};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 
 use crate::{
-    download::{cross_prefix, download_and_decompress},
-    gcc::Sysroot,
+    download::download_and_decompress,
+    gnu_make::install_make,
     make::{run_configure_with_env_in, run_make_with_env_in},
-    profile::Target,
+    profile::{Libc, Toolchain},
 };
 
 pub fn download_glibc(version: impl AsRef<str>) -> Result<PathBuf> {
@@ -24,11 +24,23 @@ pub fn download_glibc(version: impl AsRef<str>) -> Result<PathBuf> {
     Ok(glibc_dir)
 }
 
-pub fn install_glibc_sysroot(target: &Target, sysroot: Sysroot) -> Result<()> {
+pub fn install_glibc_sysroot(toolchain: &Toolchain) -> Result<()> {
     log::info!("=> install glibc");
 
-    let glibc_dir = download_glibc("2.42")?;
-    let objdir = glibc_dir.join(format!("objdir-arch-{}", target.to_string()));
+    let Libc::Glibc(glibc_version) = toolchain.libc else {
+        return Err(anyhow!(
+            "`install_glibc_sysroot` called with a musl toolchain"
+        ));
+    };
+
+    // workaround: we need an old Make version to compile this glibc version.
+    // see: https://stackoverflow.com/a/77107152/8701101
+    if glibc_version <= GlibcVersion(2, 30, 0) {
+        install_make("4.3", toolchain)?;
+    }
+
+    let glibc_dir = download_glibc(glibc_version.to_string())?;
+    let objdir = glibc_dir.join(format!("objdir-arch-{}", toolchain.id()));
     std::fs::create_dir_all(&objdir)?;
 
     let stdout = Command::new(glibc_dir.join("scripts").join("config.guess"))
@@ -37,14 +49,17 @@ pub fn install_glibc_sysroot(target: &Target, sysroot: Sysroot) -> Result<()> {
     let guess = String::from_utf8(stdout)?;
 
     let args = vec![
-        format!("--host={}", target.to_string()),
+        format!("--host={}", toolchain.target),
         format!("--build={}", guess.trim()),
         "--prefix=/usr".into(),
-        format!("--with-headers={}/usr/include", sysroot.display()),
-        format!("--with-sysroot={}", sysroot.display()),
+        format!(
+            "--with-headers={}/usr/include",
+            toolchain.sysroot()?.display()
+        ),
+        format!("--with-sysroot={}", toolchain.sysroot()?.display()),
         "--disable-werror".into(),
     ];
-    let prefix = target.to_string();
+    let prefix = toolchain.target;
 
     let env: Vec<(String, String)> = vec![
         ("BUILD_CC".into(), "gcc".into()),
@@ -57,14 +72,7 @@ pub fn install_glibc_sysroot(target: &Target, sysroot: Sysroot) -> Result<()> {
         ("RANLIB".into(), format!("{prefix}-ranlib")),
         ("LD".into(), format!("{prefix}-ld")),
         ("READELF".into(), format!("{prefix}-readelf")),
-        (
-            "PATH".into(),
-            format!(
-                "{}:{}",
-                cross_prefix()?.join("bin").display(),
-                std::env::var("PATH")?
-            ),
-        ),
+        ("PATH".into(), toolchain.env_path()?),
     ];
     run_configure_with_env_in(&objdir, &args, env.clone())?;
 
@@ -73,7 +81,7 @@ pub fn install_glibc_sysroot(target: &Target, sysroot: Sysroot) -> Result<()> {
         &objdir,
         &[
             "install",
-            &format!("DESTDIR={}", sysroot.display()),
+            &format!("DESTDIR={}", toolchain.sysroot()?.display()),
             "-j",
             "28",
         ],
@@ -81,4 +89,40 @@ pub fn install_glibc_sysroot(target: &Target, sysroot: Sysroot) -> Result<()> {
     )?;
 
     Ok(())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct GlibcVersion(u64, u64, u64);
+
+impl FromStr for GlibcVersion {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        let parts: Vec<&str> = s.split(".").collect();
+
+        fn parse_part(s: &str) -> anyhow::Result<u64> {
+            s.parse().context(format!("`{}` is not a number", s))
+        }
+
+        match parts.as_slice() {
+            [major, minor, patch] => Ok(GlibcVersion(
+                parse_part(major)?,
+                parse_part(minor)?,
+                parse_part(patch)?,
+            )),
+            [major, minor] => Ok(GlibcVersion(parse_part(major)?, parse_part(minor)?, 0)),
+            _ => Err(anyhow!("`{}` is an invalid glibc version", s)),
+        }
+    }
+}
+
+impl Display for GlibcVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // 2.16.0 is the only version that has a `.0` in the FTP server
+        if (self.2 == 0) && (self.0, self.1) != (2, 16) {
+            write!(f, "{}.{}", self.0, self.1)
+        } else {
+            write!(f, "{}.{}.{}", self.0, self.1, self.2)
+        }
+    }
 }

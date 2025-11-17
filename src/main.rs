@@ -1,7 +1,9 @@
 use std::io::Write;
 use std::str::FromStr;
 
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use colored::Colorize;
 
 mod binutils;
 mod busybox;
@@ -9,6 +11,7 @@ mod cpio;
 mod download;
 mod gcc;
 mod glibc;
+mod gnu_make;
 mod linux;
 mod make;
 mod musl;
@@ -16,14 +19,14 @@ mod profile;
 mod qemu;
 mod sysroot;
 
-use anyhow::{Context, Result};
-use binutils::install_binutils;
-use gcc::install_gcc;
-
 use crate::{
+    binutils::{Binutils, BinutilsVersion, install_binutils},
     download::cache_dir,
-    gcc::{GccStage, Sysroot},
-    profile::{Abi, Target},
+    gcc::{GCC, GCCVersion, GccStage, Sysroot, install_gcc},
+    glibc::GlibcVersion,
+    linux::KernelVersion,
+    musl::MuslVersion,
+    profile::{Abi, Libc, Target, Toolchain},
     qemu::start_vm,
     sysroot::setup_sysroot,
 };
@@ -41,6 +44,10 @@ enum Commands {
         toolchain: String,
         #[arg(long, help = "gcc version", default_value = "15.2.0")]
         gcc: String,
+        #[arg(long, help = "libc version", default_value = "2.42")]
+        libc: String,
+        #[arg(long, help = "binutils version", default_value = "2.45")]
+        binutils: String,
         #[arg(short, long, default_value_t = 10)]
         jobs: u64,
     },
@@ -74,45 +81,58 @@ enum CacheAction {
 /// Install a toolchain.
 ///
 /// use `force` to forcefully re-install a toolchain if it was already installed.
-fn install_toolchain(toolchain_str: String, gcc: String, jobs: u64, force: bool) -> Result<()> {
-    let toolchain = Target::from_str(&toolchain_str)?;
+fn install_toolchain(
+    target_str: String,
+    gcc_str: String,
+    libc_str: String,
+    binutils_str: String,
+    kernel_version: Option<&KernelVersion>,
+    jobs: u64,
+    force: bool,
+) -> Result<Toolchain> {
+    let target = Target::from_str(&target_str)?;
+    let binutils = Binutils::new(BinutilsVersion::from_str(&binutils_str)?);
+    let gcc = GCC::new(GCCVersion::from_str(&gcc_str)?);
+    let libc = match target.abi {
+        Abi::Musl => Libc::Musl(MuslVersion::from_str(&libc_str)?),
+        _ => Libc::Glibc(GlibcVersion::from_str(&libc_str)?),
+    };
 
-    if download::cross_prefix()?
-        .join("bin")
-        .join(format!("{}-gcc", toolchain_str))
-        .exists()
-        && !force
-    {
-        // toolchain already installed
-        return Ok(());
+    let toolchain = if let Some(kernel_version) = kernel_version {
+        Toolchain::new_with_kernel(target, binutils, gcc, libc, kernel_version.clone())
+    } else {
+        Toolchain::new(target, binutils, gcc, libc)
+    };
+
+    println!("{}", toolchain);
+    log::info!("{}", toolchain.bin_dir()?.display().to_string().bold());
+
+    if toolchain.gcc_bin()?.exists() && !force {
+        log::info!("toolchain is already installed");
+        return Ok(toolchain);
     }
 
-    match toolchain {
+    match target {
         // freestanding
         Target {
             abi: Abi::Elf | Abi::Eabihf | Abi::Eabi,
             ..
         } => {
             install_binutils(&toolchain, jobs)?;
-            install_gcc(&toolchain, &gcc, jobs, GccStage::Stage1)?;
+            install_gcc(&toolchain, jobs, GccStage::Stage1)?;
         }
         Target {
             abi: Abi::Gnu | Abi::GnuEabi | Abi::GnuEabihf | Abi::Musl,
             ..
         } => {
             install_binutils(&toolchain, jobs)?;
-            let sysroot = setup_sysroot(&toolchain, &gcc, jobs)?;
-            install_gcc(
-                &toolchain,
-                &gcc,
-                jobs,
-                GccStage::Final(Some(Sysroot(sysroot))),
-            )?;
+            let sysroot = setup_sysroot(&toolchain, jobs)?;
+            install_gcc(&toolchain, jobs, GccStage::Final(Some(Sysroot(sysroot))))?;
         }
         _ => unimplemented!(),
     };
 
-    Ok(())
+    Ok(toolchain)
 }
 
 fn main() -> Result<()> {
@@ -137,9 +157,11 @@ fn main() -> Result<()> {
         Commands::Toolchain {
             toolchain,
             gcc,
+            libc,
+            binutils,
             jobs,
         } => {
-            install_toolchain(toolchain, gcc, jobs, false)?;
+            install_toolchain(toolchain, gcc, libc, binutils, None, jobs, false)?;
         }
         Commands::Linux {
             version,
@@ -149,9 +171,9 @@ fn main() -> Result<()> {
             defconfig,
         } => {
             let target = Target::from_str(toolchain.as_str())?;
-            install_toolchain(toolchain, "15.2.0".into(), jobs, false)?;
-            let kernel_image = linux::get_image(&target, &version, jobs, menuconfig, defconfig)?;
-            let rootfs = busybox::build_rootfs(&target)?;
+            let (kernel_image, toolchain) =
+                linux::get_image(&target, &version, jobs, menuconfig, defconfig)?;
+            let rootfs = busybox::build_rootfs(&toolchain)?;
             start_vm(&target, kernel_image, rootfs)?;
         }
         Commands::Cache { action } => match action {

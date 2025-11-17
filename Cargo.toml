@@ -1,6 +1,6 @@
 [package]
 name = "toolup"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 
 [dependencies]
@@ -9,6 +9,7 @@ blake3 = "1.8.2"
 bzip2 = "0.6.1"
 chrono = "0.4.42"
 clap = { version = "4.5.51", features = ["derive"]}
+colored = "3.0.0"
 cpio = "0.4.1"
 env_logger = "0.11.8"
 flate2 = "1.1.5"

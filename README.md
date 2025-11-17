@@ -32,6 +32,9 @@ aarch64-unknown-linux-gnu-gcc test.c -o test
 qemu-aarch64 -L `aarch64-unknown-linux-gnu-gcc -print-sysroot` ./test
 ```
 
+# TODO
+- We still have a dependency on the host (e.g. when compiling kernel host tools) and that's the reason I can't build old kernels or older GCC versions.
+
 ## Screenshots
 <img width="500" alt="image" src="https://github.com/user-attachments/assets/a876bfac-97fc-424b-85dc-f92bbbf0c208" />
 

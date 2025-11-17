@@ -5,10 +5,10 @@ use std::path::Path;
 use std::{fs::OpenOptions, path::PathBuf};
 
 use crate::cpio::pack_rootfs;
-use crate::download::{cache_dir, sysroots_dir};
-use crate::download::{cross_prefix, download_and_decompress};
+use crate::download::cache_dir;
+use crate::download::download_and_decompress;
 use crate::make::run_make_with_env_in;
-use crate::profile::Target;
+use crate::profile::Toolchain;
 
 pub fn download_busybox() -> Result<PathBuf> {
     log::info!("=> downloading busybox");
@@ -22,10 +22,10 @@ pub fn download_busybox() -> Result<PathBuf> {
 }
 
 /// Returns rootfs image
-pub fn build_rootfs(target: &Target) -> Result<PathBuf> {
+pub fn build_rootfs(toolchain: &Toolchain) -> Result<PathBuf> {
     let busybox_dir = download_busybox()?;
-    let rootfs_dir = cache_dir()?.join(format!("rootfs-{}", target.to_string()));
-    let cpio_gz = cache_dir()?.join(format!("rootfs-{}.cpio.gz", target.to_string()));
+    let rootfs_dir = cache_dir()?.join(format!("rootfs-{}", toolchain.target));
+    let cpio_gz = cache_dir()?.join(format!("rootfs-{}.cpio.gz", toolchain.target));
     if cpio_gz.exists() {
         return Ok(cpio_gz);
     }
@@ -53,19 +53,12 @@ exec setsid cttyhack /bin/sh
         .unwrap();
     init.write_all(init_script.as_bytes())?;
 
-    let env: Vec<(String, String)> = vec![(
-        "PATH".into(),
-        format!(
-            "{}:{}",
-            cross_prefix()?.join("bin").display(),
-            std::env::var("PATH")?
-        ),
-    )];
+    let env: Vec<(String, String)> = vec![("PATH".into(), toolchain.env_path()?)];
 
     run_make_with_env_in(
         &busybox_dir,
         &[
-            format!("CROSS_COMPILE={}-", target.to_string()).as_str(),
+            format!("CROSS_COMPILE={}-", toolchain.target).as_str(),
             "defconfig",
         ],
         env.clone(),
@@ -85,14 +78,14 @@ exec setsid cttyhack /bin/sh
     run_make_with_env_in(
         &busybox_dir,
         &[
-            format!("CROSS_COMPILE={}-", target.to_string()).as_str(),
+            format!("CROSS_COMPILE={}-", toolchain.target).as_str(),
             format!("CONFIG_PREFIX={}", &rootfs_dir.display()).as_str(),
             "install",
         ],
         env,
     )?;
 
-    let sysroot = sysroots_dir()?.join(format!("sysroot-{}", target.to_string()));
+    let sysroot = toolchain.sysroot()?;
 
     if sysroot.join("lib").exists() {
         copy_dir_to(&sysroot.join("lib"), &rootfs_dir).context("copying sysroot/lib")?;

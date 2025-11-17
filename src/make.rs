@@ -1,3 +1,4 @@
+// TODO: rename this module to `commands`
 use std::{
     ffi::OsStr,
     fs::File,
@@ -99,6 +100,8 @@ pub fn run_command_in(
     let stderr = child.stderr.take().expect("stderr is not None");
 
     let log_path = logs_dir()?.join(log_filename(title));
+    log::trace!("{}", log_path.display());
+
     let log = Arc::new(Mutex::new(File::create(&log_path)?));
 
     let t_out = {

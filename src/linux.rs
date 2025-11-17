@@ -1,7 +1,7 @@
 use std::{
     fs::OpenOptions,
-    io::Read,
-    path::{Path, PathBuf},
+    io::{Read, Write},
+    path::PathBuf,
     process::{Command, Stdio},
     str::FromStr,
 };
@@ -9,9 +9,10 @@ use std::{
 use anyhow::{Context, Result, anyhow};
 
 use crate::{
-    download::{cross_prefix, download_and_decompress, linux_images_dir},
+    download::{download_and_decompress, linux_images_dir},
+    install_toolchain,
     make::{run_make_in, run_make_with_env_in},
-    profile::{Arch, Target},
+    profile::{Arch, Target, Toolchain},
 };
 
 pub fn download_linux(version: impl AsRef<str>) -> Result<PathBuf> {
@@ -28,26 +29,48 @@ pub fn download_linux(version: impl AsRef<str>) -> Result<PathBuf> {
     let linux_dir = download_and_decompress(&url, format!("linux-{version}"), true)
         .context(format!("failed to download {tarball}"))?;
 
+    // TODO: pass parsed version to this function
+    if KernelVersion::from_str(version.as_ref()).unwrap() == KernelVersion(5, 1, 0) {
+        const DTC_LEXER_PATCH: &str = include_str!("../patches/linux-5.1-dtc-lexer.1.patch");
+        let mut cmd = Command::new("git")
+            .arg("apply")
+            .arg("-")
+            .current_dir(linux_dir.join("scripts").join("dtc"))
+            .stdin(std::process::Stdio::piped())
+            .spawn()?;
+        let stdin = cmd
+            .stdin
+            .as_mut()
+            .context("git apply: failed to open stdin")?;
+        stdin.write_all(DTC_LEXER_PATCH.as_bytes())?;
+        cmd.wait()?;
+    }
     Ok(linux_dir)
 }
 
-pub fn install_headers(target: &Target, sysroot: impl AsRef<Path>) -> Result<()> {
+pub fn install_headers(toolchain: &Toolchain) -> Result<()> {
     log::info!("=> install linux headers");
-    let kernel_src = download_linux("6.17.7")?;
+
+    let kernel_src = if let Some(kernel_version) = toolchain.kernel {
+        download_linux(kernel_version.to_string())?
+    } else {
+        download_linux("6.17.7")?
+    };
 
     run_make_in(
         kernel_src,
         &[
-            format!("ARCH={}", target.arch.to_kernel_arch()).as_str(),
+            format!("ARCH={}", toolchain.target.arch.to_kernel_arch()).as_str(),
             "headers_install",
-            format!("INSTALL_HDR_PATH={}/usr", sysroot.as_ref().display()).as_str(),
+            format!("INSTALL_HDR_PATH={}/usr", toolchain.sysroot()?.display()).as_str(),
         ],
     )?;
+
     Ok(())
 }
 
 pub fn config(
-    target: &Target,
+    toolchain: &Toolchain,
     workdir: PathBuf,
     out: PathBuf,
     menuconfig: bool,
@@ -55,14 +78,7 @@ pub fn config(
 ) -> Result<()> {
     log::info!("=> kernel defconfig");
 
-    let env: Vec<(String, String)> = vec![(
-        "PATH".into(),
-        format!(
-            "{}:{}",
-            cross_prefix()?.join("bin").display(),
-            std::env::var("PATH")?
-        ),
-    )];
+    let env: Vec<(String, String)> = vec![("PATH".into(), toolchain.env_path()?)];
 
     //let defconfig = if arch == "x86" {
     //    "i386_defconfig"
@@ -75,7 +91,7 @@ pub fn config(
     //} else {
     //    "defconfig"
     //};
-    let defconfig = match target.arch {
+    let defconfig = match toolchain.target.arch {
         Arch::I686 => "i386_defconfig",
         _ => "defconfig",
     };
@@ -90,7 +106,7 @@ pub fn config(
         run_make_with_env_in(
             &workdir,
             &[
-                format!("ARCH={}", target.arch.to_kernel_arch()).as_str(),
+                format!("ARCH={}", toolchain.target.arch.to_kernel_arch()).as_str(),
                 "mrproper",
             ],
             env.clone(),
@@ -99,9 +115,9 @@ pub fn config(
         run_make_with_env_in(
             &workdir,
             &[
-                format!("ARCH={}", target.arch.to_kernel_arch()).as_str(),
+                format!("ARCH={}", toolchain.target.arch.to_kernel_arch()).as_str(),
                 format!("O={}", out.display()).as_str(),
-                format!("CROSS_COMPILE={}-", target.to_string()).as_str(),
+                format!("CROSS_COMPILE={}-", toolchain.target).as_str(),
                 defconfig,
             ],
             env.clone(),
@@ -110,14 +126,15 @@ pub fn config(
     if menuconfig {
         Command::new("make")
             .args(&[
-                format!("ARCH={}", target.arch.to_kernel_arch()).as_str(),
+                format!("ARCH={}", toolchain.target.arch.to_kernel_arch()).as_str(),
                 format!("O={}", out.display()).as_str(),
-                format!("CROSS_COMPILE={}-", target.to_string()).as_str(),
+                format!("CROSS_COMPILE={}-", toolchain.target).as_str(),
                 "menuconfig",
             ])
             .current_dir(workdir)
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
+            .envs(env.clone())
             .status()
             .context("running menuconfig")?;
     }
@@ -125,11 +142,7 @@ pub fn config(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct KernelVersion {
-    major: u64,
-    minor: u64,
-    patch: u64,
-}
+pub struct KernelVersion(u64, u64, u64);
 
 impl FromStr for KernelVersion {
     type Err = anyhow::Error;
@@ -138,51 +151,44 @@ impl FromStr for KernelVersion {
         let parts: Vec<&str> = s.split(".").collect();
 
         match parts.as_slice() {
-            [major, minor] => Ok(KernelVersion {
-                major: major.parse().context("invalid version")?,
-                minor: minor.parse().context("invalid version")?,
-                patch: 0,
-            }),
-            [major, minor, patch] => Ok(KernelVersion {
-                major: major.parse().context("invalid version")?,
-                minor: minor.parse().context("invalid version")?,
-                patch: patch.parse().context("invalid version")?,
-            }),
+            [major, minor] => Ok(KernelVersion(
+                major.parse().context("invalid version")?,
+                minor.parse().context("invalid version")?,
+                0,
+            )),
+            [major, minor, patch] => Ok(KernelVersion(
+                major.parse().context("invalid version")?,
+                minor.parse().context("invalid version")?,
+                patch.parse().context("invalid version")?,
+            )),
             _ => Err(anyhow!("")),
         }
     }
 }
 impl ToString for KernelVersion {
     fn to_string(&self) -> String {
-        if self.patch == 0 {
-            format!("{}.{}", self.major, self.minor)
+        if self.2 == 0 {
+            format!("{}.{}", self.0, self.1)
         } else {
-            format!("{}.{}.{}", self.major, self.minor, self.patch)
+            format!("{}.{}.{}", self.0, self.1, self.2)
         }
     }
 }
 
 pub fn build(
     version: impl AsRef<str>,
-    target: &Target,
+    toolchain: &Toolchain,
     workdir: PathBuf,
     jobs: u64,
     out: PathBuf,
 ) -> Result<()> {
     log::info!("=> kerenl build");
 
-    let mut env: Vec<(String, String)> = vec![(
-        "PATH".into(),
-        format!(
-            "{}:{}",
-            cross_prefix()?.join("bin").display(),
-            std::env::var("PATH")?
-        ),
-    )];
+    let mut env: Vec<(String, String)> = vec![("PATH".into(), toolchain.env_path()?)];
     let mut args: Vec<String> = vec![
         format!("O={}", out.display()),
-        format!("ARCH={}", target.arch.to_kernel_arch()),
-        format!("CROSS_COMPILE={}-", target.to_string()),
+        format!("ARCH={}", toolchain.target.arch.to_kernel_arch()),
+        format!("CROSS_COMPILE={}-", toolchain.target.to_string()),
         format!("-j{}", jobs),
     ];
 
@@ -190,20 +196,20 @@ pub fn build(
     let kernel_version = KernelVersion::from_str(version.as_ref())?;
 
     // modify compiler flags to compile old kernels with a newer GCC version.
-    if kernel_version <= KernelVersion::from_str("6.14").unwrap() {
+    if kernel_version <= KernelVersion(6, 14, 0) {
         // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=117178
         kcflags.push("-Wno-unterminated-string-initialization");
     }
 
     // 'bool' is a keyword with '-std=c23' onwards
-    if kernel_version <= KernelVersion::from_str("6.13").unwrap() {
+    if kernel_version <= KernelVersion(6, 13, 0) {
         kcflags.push("-std=gnu11");
 
         args.push("CFLAGS_KERNEL=-std=gnu11".into());
         args.push("CFLAGS_MODULE=-std=gnu11".into());
     }
 
-    if kernel_version <= KernelVersion::from_str("6.2").unwrap() {
+    if kernel_version <= KernelVersion(6, 2, 0) {
         // https://lists.linaro.org/archives/list/linux-stable-mirror%40lists.linaro.org/message/7X43AVMPEXUTTYJFHQLJAV5AMZO7PFB3/
         kcflags.push("-Wno-array-bounds");
 
@@ -211,13 +217,13 @@ pub fn build(
         args.push("CFLAGS_MODULE=-std=gnu11".into());
     }
 
-    if kernel_version <= KernelVersion::from_str("6.0").unwrap() {
+    if kernel_version <= KernelVersion(6, 0, 0) {
         kcflags.push("-Wno-error=format");
     }
 
-    if kernel_version <= KernelVersion::from_str("5.15").unwrap() {
+    if kernel_version <= KernelVersion(5, 15, 0) && kernel_version > KernelVersion(5, 1, 0) {
         kcflags.push("-Wno-use-after-free");
-        kcflags.push("-fno-analyzer");
+        //kcflags.push("-fno-analyzer");
         kcflags.push("-Wno-error=use-after-free");
         args.push("CFLAGS_KERNEL=-std=gnu11 -Wno-error=use-after-free -Wno-use-after-free".into());
         args.push("CFLAGS_MODULE=-std=gnu11 -Wno-error=use-after-free -Wno-use-after-free".into());
@@ -225,11 +231,10 @@ pub fn build(
         args.push("EXTRA_CFLAGS=-Wno-error=use-after-free -Wno-use-after-free".into());
     }
 
-    if kernel_version <= KernelVersion::from_str("5.10").unwrap() {
-        // TODO: we need an old binutils for objtool to work
-        // TODO: I need to work on supporting multiple versions of the same toolchain.
-        // Or, pass CONFIG_STACK_VALIDATION=n, but I need to create a function to programmatically
-        // configure the kernel.
+    if kernel_version <= KernelVersion(5, 1, 0) {
+        args.push("HOSTCFLAGS=-Wno-error=redundant-decls -fno-common".into());
+        args.push("KBUILD_HOSTCFLAGS=-Wno-error -fno-common".into());
+        args.push("V=1".into());
     }
 
     if !kcflags.is_empty() {
@@ -243,22 +248,58 @@ pub fn build_out(version: impl AsRef<str>, target: &Target) -> Result<PathBuf> {
     Ok(linux_images_dir()?.join(format!("{}-{}", target.to_string(), version.as_ref())))
 }
 
+/// Returns a tuple consisting of a kernel image and the toolchain used to compile it.
+///
+/// The toolchain will be selected based on the kernel version.
 pub fn get_image(
     target: &Target,
     version: impl AsRef<str>,
     jobs: u64,
     menuconfig: bool,
     defconfig: bool,
-) -> Result<PathBuf> {
+) -> Result<(PathBuf, Toolchain)> {
     log::info!("=> kernel image");
 
-    let out = build_out(&version, target)?;
+    let kernel_version = KernelVersion::from_str(version.as_ref())?;
+    let toolchain = if kernel_version <= KernelVersion(5, 1, 0) {
+        install_toolchain(
+            target.to_string(),
+            "7.5.0".into(),
+            "2.30".into(),
+            "2.33.1".into(),
+            Some(&kernel_version),
+            jobs,
+            false,
+        )?
+    } else if kernel_version <= KernelVersion(5, 10, 0) {
+        install_toolchain(
+            target.to_string(),
+            "15.2.0".into(),
+            "2.35".into(),
+            "2.34".into(), // the 5.10 kernel will compile with this binutils version
+            Some(&kernel_version),
+            jobs,
+            false,
+        )?
+    } else {
+        install_toolchain(
+            target.to_string(),
+            "15.2.0".into(),
+            "2.42".into(),
+            "2.45".into(),
+            Some(&kernel_version),
+            jobs,
+            false,
+        )?
+    };
+
+    let out = build_out(&version, &toolchain.target)?;
     let boot_dir = out
         .join("arch")
-        .join(target.arch.to_kernel_arch())
+        .join(toolchain.target.arch.to_kernel_arch())
         .join("boot");
 
-    let out_image = match target.arch {
+    let out_image = match toolchain.target.arch {
         Arch::X86_64 | Arch::I686 => boot_dir.join("bzImage"),
         Arch::Armv7 => boot_dir.join("zImage"),
         Arch::Aarch64 => boot_dir.join("Image"),
@@ -275,7 +316,13 @@ pub fn get_image(
     };
 
     let workdir = download_linux(&version)?;
-    config(target, workdir.clone(), out.clone(), menuconfig, defconfig)?;
+    config(
+        &toolchain,
+        workdir.clone(),
+        out.clone(),
+        menuconfig,
+        defconfig,
+    )?;
 
     let mut config_file = OpenOptions::new()
         .read(true)
@@ -290,12 +337,12 @@ pub fn get_image(
     toolup_image.add_extension(config_hash.to_string());
 
     if toolup_image.exists() {
-        return Ok(toolup_image);
+        return Ok((toolup_image, toolchain));
     }
 
-    build(&version, target, workdir.clone(), jobs, out)?;
+    build(&version, &toolchain, workdir.clone(), jobs, out)?;
 
     std::fs::copy(out_image, &toolup_image).context("failed to copy kernel image")?;
 
-    Ok(toolup_image)
+    Ok((toolup_image, toolchain))
 }
