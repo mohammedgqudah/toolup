@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use flate2::read::GzDecoder;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use lzma::LzmaReader as XzDecoder;
 use std::{
     fs::{self, File},
     io::{self, BufReader},
@@ -8,9 +9,6 @@ use std::{
     time::Duration,
 };
 use tar::Archive;
-//use xz2::read::XzDecoder;
-//use xz2::bufread::XzDecoder;
-use lzma::LzmaReader as XzDecoder;
 
 pub fn cache_dir() -> Result<PathBuf> {
     let cache =
