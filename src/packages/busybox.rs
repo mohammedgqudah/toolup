@@ -51,7 +51,7 @@ exec setsid cttyhack /bin/sh
         .append(true)
         .mode(0o755)
         .open(rootfs_dir.join("init"))
-        .unwrap();
+        .context("failed to create `init` in rootfs")?;
     init.write_all(init_script.as_bytes())?;
 
     let env: Vec<(OsString, OsString)> = vec![("PATH".into(), toolchain.env_path()?)];
@@ -71,12 +71,12 @@ exec setsid cttyhack /bin/sh
         .create(true)
         .append(true)
         .open(busybox_dir.join(".config"))
-        .unwrap();
+        .context("failed to read busybox's `.config`")?;
 
     // static build
-    writeln!(f, "CONFIG_STATIC=y").unwrap();
+    writeln!(f, "CONFIG_STATIC=y")?;
     // workaround: https://forum.beagleboard.org/t/errors-during-busybox-compilation/38969/6
-    writeln!(f, "# CONFIG_TC is not set").unwrap();
+    writeln!(f, "# CONFIG_TC is not set")?;
 
     run_command_in(
         &busybox_dir,
@@ -115,7 +115,7 @@ fn copy_dir_to<P: AsRef<Path>>(src: P, target_root: P) -> Result<()> {
     let src = src.as_ref();
     let target_root = target_root.as_ref();
 
-    let target_dir = target_root.join(src.file_name().unwrap());
+    let target_dir = target_root.join(src.file_name().context("`src` is an invalid path")?);
     std::fs::create_dir_all(&target_dir)?;
 
     // Recursively walk through all entries

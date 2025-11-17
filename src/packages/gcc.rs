@@ -25,7 +25,10 @@ impl DerefMut for Sysroot {
 }
 
 pub enum GccStage {
+    /// Build a stage-1 gcc compiler. Either for a freestanding target or to bootstrap GCC (to
+    /// build the [`GccStage::Final`] compiler)
     Stage1,
+    /// Build a full compiler using a bootstrap compiler from [`GccStage::Stage1`]
     Final(Option<Sysroot>),
 }
 
@@ -113,8 +116,7 @@ pub fn install_gcc(toolchain: &Toolchain, jobs: u64, stage: GccStage) -> Result<
                 "--disable-multilib".into(),
             ];
             if let Some(sysroot) = maybe_sysroot {
-                let p = sysroot.as_os_str().to_str().unwrap().to_string();
-                args.push(format!("--with-sysroot={}", p));
+                args.push(format!("--with-sysroot={}", sysroot.display()));
             }
 
             run_command_in(

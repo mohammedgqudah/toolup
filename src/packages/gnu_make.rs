@@ -6,6 +6,7 @@ use crate::{commands::run_command_in, download::download_and_decompress, profile
 
 pub fn download_make(version: impl AsRef<str>) -> Result<PathBuf> {
     log::info!("=> download make {}", version.as_ref());
+
     let version = version.as_ref();
     let tarball = format!("make-{version}.tar.gz");
     let url = format!("https://ftp.gnu.org/gnu/make/{tarball}", tarball = &tarball);
@@ -16,6 +17,7 @@ pub fn download_make(version: impl AsRef<str>) -> Result<PathBuf> {
     Ok(make_dir)
 }
 
+/// Build GNU Make for `toolchain`.
 pub fn install_make(version: impl AsRef<str>, toolchain: &Toolchain) -> Result<()> {
     log::info!("=> install make {}", version.as_ref());
 

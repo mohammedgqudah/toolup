@@ -23,6 +23,7 @@ pub fn download_musl(version: impl AsRef<str>) -> Result<PathBuf> {
     Ok(musl_dir)
 }
 
+/// Build musl and install it in the toolchain's sysroot.
 pub fn install_musl_sysroot(toolchain: &Toolchain) -> Result<()> {
     log::info!("=> install musl");
 

@@ -24,6 +24,7 @@ pub fn download_glibc(version: impl AsRef<str>) -> Result<PathBuf> {
     Ok(glibc_dir)
 }
 
+/// Build glibc and install it in the toolchain's sysroot.
 pub fn install_glibc_sysroot(toolchain: &Toolchain) -> Result<()> {
     log::info!("=> install glibc");
 
@@ -43,6 +44,8 @@ pub fn install_glibc_sysroot(toolchain: &Toolchain) -> Result<()> {
     let objdir = glibc_dir.join(format!("objdir-arch-{}", toolchain.id()));
     std::fs::create_dir_all(&objdir)?;
 
+    // Get the target triple for the host.
+    // TODO: write a function for this instead of relying on config.guess.
     let stdout = Command::new(glibc_dir.join("scripts").join("config.guess"))
         .output()?
         .stdout;
