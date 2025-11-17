@@ -35,25 +35,34 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     Toolchain {
+        /// e.g. aarch64-unknown-linux-gnu
         toolchain: String,
-        #[arg(long, help = "gcc version", default_value = "15.2.0")]
+        #[arg(long, default_value = "15.2.0")]
+        /// GCC version
         gcc: String,
-        #[arg(long, help = "libc version")]
+        #[arg(long)]
+        /// glibc or musl version; depending on the target
         libc: Option<String>,
-        #[arg(long, help = "binutils version", default_value = "2.45")]
+        #[arg(long, default_value = "2.45")]
+        /// binutils version
         binutils: String,
         #[arg(short, long, default_value_t = 10)]
+        /// The number of threads to use for running commands
         jobs: u64,
     },
     Linux {
+        /// The kernel version to build. e.g. 6.17
         version: String,
         #[arg(long, short, default_value = "x86_64-unknown-linux-gnu")]
         toolchain: String,
         #[arg(short, long, default_value_t = 10)]
+        /// The number of threads to use for running commands
         jobs: u64,
         #[arg(short, long, default_value_t = false)]
+        /// Open the kernel's menuconfig before building
         menuconfig: bool,
         #[arg(short, long, default_value_t = false)]
+        /// Whether to run defconfig or not. This will erase old config.
         defconfig: bool,
     },
     Cache {
