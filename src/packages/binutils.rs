@@ -3,8 +3,8 @@ use std::{fmt::Display, str::FromStr};
 use anyhow::{Context, Result, anyhow};
 
 use crate::{
-    download::download_and_decompress,
     commands::{run_configure_in, run_make_in},
+    download::download_and_decompress,
     profile::Toolchain,
 };
 

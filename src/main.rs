@@ -5,27 +5,21 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 
-mod binutils;
-mod busybox;
+mod commands;
 mod cpio;
 mod download;
-mod gcc;
-mod glibc;
-mod gnu_make;
-mod linux;
-mod commands;
-mod musl;
+mod packages;
 mod profile;
 mod qemu;
 mod sysroot;
 
 use crate::{
-    binutils::{Binutils, BinutilsVersion, install_binutils},
     download::cache_dir,
-    gcc::{GCC, GCCVersion, GccStage, Sysroot, install_gcc},
-    glibc::GlibcVersion,
-    linux::KernelVersion,
-    musl::MuslVersion,
+    packages::binutils::{Binutils, BinutilsVersion, install_binutils},
+    packages::gcc::{GCC, GCCVersion, GccStage, Sysroot, install_gcc},
+    packages::glibc::GlibcVersion,
+    packages::linux::KernelVersion,
+    packages::musl::MuslVersion,
     profile::{Abi, Libc, Target, Toolchain},
     qemu::start_vm,
     sysroot::setup_sysroot,
@@ -44,8 +38,8 @@ enum Commands {
         toolchain: String,
         #[arg(long, help = "gcc version", default_value = "15.2.0")]
         gcc: String,
-        #[arg(long, help = "libc version", default_value = "2.42")]
-        libc: String,
+        #[arg(long, help = "libc version")]
+        libc: Option<String>,
         #[arg(long, help = "binutils version", default_value = "2.45")]
         binutils: String,
         #[arg(short, long, default_value_t = 10)]
@@ -161,6 +155,11 @@ fn main() -> Result<()> {
             binutils,
             jobs,
         } => {
+            let libc = libc.unwrap_or(if toolchain.contains("musl") {
+                "1.2.5".into()
+            } else {
+                "2.42".into()
+            });
             install_toolchain(toolchain, gcc, libc, binutils, None, jobs, false)?;
         }
         Commands::Linux {
@@ -172,8 +171,8 @@ fn main() -> Result<()> {
         } => {
             let target = Target::from_str(toolchain.as_str())?;
             let (kernel_image, toolchain) =
-                linux::get_image(&target, &version, jobs, menuconfig, defconfig)?;
-            let rootfs = busybox::build_rootfs(&toolchain)?;
+                packages::linux::get_image(&target, &version, jobs, menuconfig, defconfig)?;
+            let rootfs = packages::busybox::build_rootfs(&toolchain)?;
             start_vm(&target, kernel_image, rootfs)?;
         }
         Commands::Cache { action } => match action {

@@ -3,10 +3,10 @@ use std::path::PathBuf;
 use anyhow::Result;
 
 use crate::{
-    gcc::{GccStage, install_gcc},
-    glibc::install_glibc_sysroot,
-    linux,
-    musl::install_musl_sysroot,
+    packages::gcc::{GccStage, install_gcc},
+    packages::glibc::install_glibc_sysroot,
+    packages::linux,
+    packages::musl::install_musl_sysroot,
     profile::{Libc, Toolchain},
 };
 

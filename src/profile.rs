@@ -4,12 +4,12 @@ use anyhow::{Result, anyhow};
 use colored::Colorize;
 
 use crate::{
-    binutils::Binutils,
     download::{self, sysroots_dir},
-    gcc::GCC,
-    glibc::GlibcVersion,
-    linux::KernelVersion,
-    musl::MuslVersion,
+    packages::binutils::Binutils,
+    packages::gcc::GCC,
+    packages::glibc::GlibcVersion,
+    packages::linux::KernelVersion,
+    packages::musl::MuslVersion,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

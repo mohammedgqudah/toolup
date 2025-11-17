@@ -3,9 +3,9 @@ use std::{fmt::Display, path::PathBuf, process::Command, str::FromStr};
 use anyhow::{Context, Result, anyhow};
 
 use crate::{
-    download::download_and_decompress,
-    gnu_make::install_make,
     commands::{run_configure_with_env_in, run_make_with_env_in},
+    download::download_and_decompress,
+    packages::gnu_make::install_make,
     profile::{Libc, Toolchain},
 };
 

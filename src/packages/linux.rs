@@ -9,9 +9,9 @@ use std::{
 use anyhow::{Context, Result, anyhow};
 
 use crate::{
+    commands::{run_make_in, run_make_with_env_in},
     download::{download_and_decompress, linux_images_dir},
     install_toolchain,
-    commands::{run_make_in, run_make_with_env_in},
     profile::{Arch, Target, Toolchain},
 };
 
@@ -31,7 +31,7 @@ pub fn download_linux(version: impl AsRef<str>) -> Result<PathBuf> {
 
     // TODO: pass parsed version to this function
     if KernelVersion::from_str(version.as_ref()).unwrap() == KernelVersion(5, 1, 0) {
-        const DTC_LEXER_PATCH: &str = include_str!("../patches/linux-5.1-dtc-lexer.1.patch");
+        const DTC_LEXER_PATCH: &str = include_str!("../../patches/linux-5.1-dtc-lexer.1.patch");
         let mut cmd = Command::new("git")
             .arg("apply")
             .arg("-")
