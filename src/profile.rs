@@ -310,83 +310,6 @@ impl FromStr for Target {
     }
 }
 
-#[cfg(test)]
-mod test {
-    use std::str::FromStr;
-
-    use super::{Abi, Arch, Os, Target, Vendor};
-    use anyhow::Result;
-
-    #[test]
-    pub fn test() -> Result<()> {
-        assert_eq!(
-            Target::from_str("x86_64-unknown-none-elf")?,
-            Target {
-                arch: Arch::X86_64,
-                vendor: Vendor::Unknown,
-                os: Os::None,
-                abi: Abi::Elf
-            }
-        );
-        assert_eq!(
-            Target::from_str("armv7-unknown-linux-gnueabi")?,
-            Target {
-                arch: Arch::Armv7,
-                vendor: Vendor::Unknown,
-                os: Os::Linux,
-                abi: Abi::GnuEabi
-            }
-        );
-        assert_eq!(
-            Target::from_str("armv7-pc-linux-gnueabi")?,
-            Target {
-                arch: Arch::Armv7,
-                vendor: Vendor::Pc,
-                os: Os::Linux,
-                abi: Abi::GnuEabi
-            }
-        );
-        assert_eq!(
-            Target::from_str("i686-unknown-none-gnu")?,
-            Target {
-                arch: Arch::I686,
-                vendor: Vendor::Unknown,
-                os: Os::None,
-                abi: Abi::Gnu
-            }
-        );
-        assert_eq!(
-            Target::from_str("i686-unknown-linux-gnu")?,
-            Target {
-                arch: Arch::I686,
-                vendor: Vendor::Unknown,
-                os: Os::Linux,
-                abi: Abi::Gnu
-            }
-        );
-        assert_eq!(
-            Target::from_str("ppc64-unknown-linux-gnu")?,
-            Target {
-                arch: Arch::Ppc64,
-                vendor: Vendor::Unknown,
-                os: Os::Linux,
-                abi: Abi::Gnu
-            }
-        );
-        assert_eq!(
-            Target::from_str("ppc64le-unknown-linux-gnu")?,
-            Target {
-                arch: Arch::Ppc64Le,
-                vendor: Vendor::Unknown,
-                os: Os::Linux,
-                abi: Abi::Gnu
-            }
-        );
-
-        Ok(())
-    }
-}
-
 impl Display for Target {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.to_target_string())
@@ -508,5 +431,82 @@ impl Display for Toolchain {
         write!(f, "{}", "├─ ".yellow())?;
         write!(f, "{}", "Libc: ".bold())?;
         writeln!(f, "{}", self.libc)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::str::FromStr;
+
+    use super::{Abi, Arch, Os, Target, Vendor};
+    use anyhow::Result;
+
+    #[test]
+    pub fn test() -> Result<()> {
+        assert_eq!(
+            Target::from_str("x86_64-unknown-none-elf")?,
+            Target {
+                arch: Arch::X86_64,
+                vendor: Vendor::Unknown,
+                os: Os::None,
+                abi: Abi::Elf
+            }
+        );
+        assert_eq!(
+            Target::from_str("armv7-unknown-linux-gnueabi")?,
+            Target {
+                arch: Arch::Armv7,
+                vendor: Vendor::Unknown,
+                os: Os::Linux,
+                abi: Abi::GnuEabi
+            }
+        );
+        assert_eq!(
+            Target::from_str("armv7-pc-linux-gnueabi")?,
+            Target {
+                arch: Arch::Armv7,
+                vendor: Vendor::Pc,
+                os: Os::Linux,
+                abi: Abi::GnuEabi
+            }
+        );
+        assert_eq!(
+            Target::from_str("i686-unknown-none-gnu")?,
+            Target {
+                arch: Arch::I686,
+                vendor: Vendor::Unknown,
+                os: Os::None,
+                abi: Abi::Gnu
+            }
+        );
+        assert_eq!(
+            Target::from_str("i686-unknown-linux-gnu")?,
+            Target {
+                arch: Arch::I686,
+                vendor: Vendor::Unknown,
+                os: Os::Linux,
+                abi: Abi::Gnu
+            }
+        );
+        assert_eq!(
+            Target::from_str("ppc64-unknown-linux-gnu")?,
+            Target {
+                arch: Arch::Ppc64,
+                vendor: Vendor::Unknown,
+                os: Os::Linux,
+                abi: Abi::Gnu
+            }
+        );
+        assert_eq!(
+            Target::from_str("ppc64le-unknown-linux-gnu")?,
+            Target {
+                arch: Arch::Ppc64Le,
+                vendor: Vendor::Unknown,
+                os: Os::Linux,
+                abi: Abi::Gnu
+            }
+        );
+
+        Ok(())
     }
 }
