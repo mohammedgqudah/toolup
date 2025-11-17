@@ -39,3 +39,41 @@ qemu-aarch64 -L `aarch64-unknown-linux-gnu-gcc -print-sysroot` ./test
 <img width="500" alt="image" src="https://github.com/user-attachments/assets/a876bfac-97fc-424b-85dc-f92bbbf0c208" />
 
 <img width="500"  alt="image" src="https://github.com/user-attachments/assets/580d9b8b-6f19-4b27-9ae9-4692f63d352a" />
+
+```
+λ tree -L 2 ~/.toolup
+/home/hyper/.toolup
+├── linux-images
+│   ├── aarch64-unknown-linux-gnu-5.10
+│   ├── x86_64-unknown-linux-gnu-5.10
+│   ├── x86_64-unknown-linux-gnu-5.11
+│   ├── x86_64-unknown-linux-gnu-6.12
+│   └── x86_64-unknown-linux-gnu-6.17
+├── sysroot
+│   ├── sysroot-aarch64-unknown-linux-gnu-gcc-15.2.0-bin-2.45-glibc-2.42
+│   ├── sysroot-aarch64-unknown-linux-gnu-glibc-2.35
+│   ├── sysroot-aarch64-unknown-linux-musl-musl-1.2.5
+│   ├── sysroot-x86_64-unknown-linux-gnu-glibc-2.35
+│   ├── sysroot-x86_64-unknown-linux-gnu-glibc-2.42
+│   └── sysroot-x86_64-unknown-linux-musl-gcc-15.2.0-bin-2.45-musl-1.2.5
+└── toolchains
+    ├── aarch64-elf-gcc-15.2.0-bin-2.45-glibc-2.42
+    ├── aarch64-unknown-linux-gnu-gcc-15.2.0-bin-2.34-glibc-2.35
+    ├── aarch64-unknown-linux-gnu-gcc-15.2.0-bin-2.45-glibc-2.42
+    ├── aarch64-unknown-linux-musl-gcc-15.2.0-bin-2.45-musl-1.2.5
+    ├── x86_64-elf-gcc-15.2.0-bin-2.45-glibc-2.42
+    ├── x86_64-unknown-linux-gnu-gcc-15.2.0-bin-2.34-glibc-2.35
+    ├── x86_64-unknown-linux-gnu-gcc-15.2.0-bin-2.45-glibc-2.42
+    └── x86_64-unknown-linux-musl-gcc-15.2.0-bin-2.45-musl-1.2.5
+```
+
+```
+λ toolup toolchain aarch64-elf
+Toolchain: aarch64-elf
+├─ GCC: 15.2.0
+├─ Binutils: 2.45
+├─ Libc: glibc-2.42
+
+/home/hyper/.toolup/toolchains/aarch64-elf-gcc-15.2.0-bin-2.45-glibc-2.42/bin
+toolchain is already installed
+```
