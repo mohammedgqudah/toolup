@@ -1,4 +1,3 @@
-// TODO: rename this module to `commands`
 use std::{
     ffi::OsStr,
     fs::File,
@@ -27,14 +26,6 @@ pub fn run_make_in<P: AsRef<Path>>(workdir: P, args: &[&str]) -> Result<()> {
     _run_make_in(workdir, args, None)
 }
 
-pub fn run_make_with_env_in<P: AsRef<Path>>(
-    workdir: P,
-    args: &[impl AsRef<OsStr>],
-    env: Vec<(String, String)>,
-) -> Result<()> {
-    _run_make_in(workdir, args, Some(env))
-}
-
 pub fn _run_make_in<P: AsRef<Path>>(
     workdir: P,
     args: &[impl AsRef<OsStr>],
@@ -45,14 +36,6 @@ pub fn _run_make_in<P: AsRef<Path>>(
 
 pub fn run_configure_in<P: AsRef<Path>, S: AsRef<OsStr>>(workdir: P, args: &[S]) -> Result<()> {
     _run_configure_in(workdir, args, None)
-}
-
-pub fn run_configure_with_env_in<P: AsRef<Path>, S: AsRef<OsStr>>(
-    workdir: P,
-    args: &[S],
-    env: Vec<(String, String)>,
-) -> Result<()> {
-    _run_configure_in(workdir, args, Some(env))
 }
 
 pub fn _run_configure_in<P: AsRef<Path>, S: AsRef<OsStr>>(
@@ -78,7 +61,7 @@ pub fn run_command_in(
     title: &'static str,
     command: impl AsRef<OsStr>,
     args: &[impl AsRef<OsStr>],
-    env: Option<Vec<(String, String)>>,
+    env: Option<Vec<(impl AsRef<OsStr>, impl AsRef<OsStr>)>>,
 ) -> Result<()> {
     let pb = ProgressBar::new_spinner();
     pb.set_style(ProgressStyle::with_template("{spinner:.dim} {msg:.dim}")?);

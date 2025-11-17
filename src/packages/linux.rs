@@ -1,4 +1,5 @@
 use std::{
+    ffi::OsString,
     fs::OpenOptions,
     io::{Read, Write},
     path::PathBuf,
@@ -9,7 +10,7 @@ use std::{
 use anyhow::{Context, Result, anyhow};
 
 use crate::{
-    commands::{run_make_in, run_make_with_env_in},
+    commands::{run_command_in, run_make_in},
     download::{download_and_decompress, linux_images_dir},
     install_toolchain,
     profile::{Arch, Target, Toolchain},
@@ -78,7 +79,7 @@ pub fn config(
 ) -> Result<()> {
     log::info!("=> kernel defconfig");
 
-    let env: Vec<(String, String)> = vec![("PATH".into(), toolchain.env_path()?)];
+    let env: Vec<(OsString, OsString)> = vec![("PATH".into(), toolchain.env_path()?)];
 
     //let defconfig = if arch == "x86" {
     //    "i386_defconfig"
@@ -103,24 +104,28 @@ pub fn config(
     };
 
     if use_defconfig || force_defconfig {
-        run_make_with_env_in(
+        run_command_in(
             &workdir,
+            "make",
+            "make",
             &[
                 format!("ARCH={}", toolchain.target.arch.to_kernel_arch()).as_str(),
                 "mrproper",
             ],
-            env.clone(),
+            Some(env.clone()),
         )?;
 
-        run_make_with_env_in(
+        run_command_in(
             &workdir,
+            "make",
+            "make",
             &[
                 format!("ARCH={}", toolchain.target.arch.to_kernel_arch()).as_str(),
                 format!("O={}", out.display()).as_str(),
                 format!("CROSS_COMPILE={}-", toolchain.target).as_str(),
                 defconfig,
             ],
-            env.clone(),
+            Some(env.clone()),
         )?;
     }
     if menuconfig {
@@ -184,7 +189,7 @@ pub fn build(
 ) -> Result<()> {
     log::info!("=> kerenl build");
 
-    let mut env: Vec<(String, String)> = vec![("PATH".into(), toolchain.env_path()?)];
+    let mut env: Vec<(OsString, OsString)> = vec![("PATH".into(), toolchain.env_path()?)];
     let mut args: Vec<String> = vec![
         format!("O={}", out.display()),
         format!("ARCH={}", toolchain.target.arch.to_kernel_arch()),
@@ -238,9 +243,9 @@ pub fn build(
     }
 
     if !kcflags.is_empty() {
-        env.push(("KCFLAGS".into(), kcflags.join(" ")));
+        env.push(("KCFLAGS".into(), kcflags.join(" ").into()));
     }
-    run_make_with_env_in(&workdir, &args, env)?;
+    run_command_in(&workdir, "make", "make", &args, Some(env))?;
     Ok(())
 }
 

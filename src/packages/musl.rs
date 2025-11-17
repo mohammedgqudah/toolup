@@ -1,10 +1,10 @@
-use std::{fmt::Display, path::PathBuf, str::FromStr};
+use std::{ffi::OsString, fmt::Display, path::PathBuf, str::FromStr};
 
 use anyhow::{Context, Result, anyhow};
 
 use crate::{
+    commands::run_command_in,
     download::download_and_decompress,
-    commands::{run_configure_with_env_in, run_make_with_env_in},
     profile::{Libc, Toolchain},
 };
 
@@ -44,31 +44,39 @@ pub fn install_musl_sysroot(toolchain: &Toolchain) -> Result<()> {
     ];
     let prefix = toolchain.target;
 
-    let env: Vec<(String, String)> = vec![
+    let env: Vec<(OsString, OsString)> = vec![
         ("BUILD_CC".into(), "gcc".into()),
         ("BUILD_CXX".into(), "g++".into()),
         ("BUILD_AR".into(), "ar".into()),
         ("BUILD_RANLIB".into(), "ranlib".into()),
-        ("CC".into(), format!("{prefix}-gcc")),
-        ("CXX".into(), format!("{prefix}-g++")),
-        ("AR".into(), format!("{prefix}-ar")),
-        ("RANLIB".into(), format!("{prefix}-ranlib")),
-        ("LD".into(), format!("{prefix}-ld")),
-        ("READELF".into(), format!("{prefix}-readelf")),
+        ("CC".into(), format!("{prefix}-gcc").into()),
+        ("CXX".into(), format!("{prefix}-g++").into()),
+        ("AR".into(), format!("{prefix}-ar").into()),
+        ("RANLIB".into(), format!("{prefix}-ranlib").into()),
+        ("LD".into(), format!("{prefix}-ld").into()),
+        ("READELF".into(), format!("{prefix}-readelf").into()),
         ("PATH".into(), toolchain.env_path()?),
     ];
-    run_configure_with_env_in(&objdir, &args, env.clone())?;
-
-    run_make_with_env_in(&objdir, &["-j", "28"], env.clone())?;
-    run_make_with_env_in(
+    run_command_in(
         &objdir,
+        "configure",
+        objdir.parent().unwrap().join("configure"),
+        &args,
+        Some(env.clone()),
+    )?;
+
+    run_command_in(&objdir, "make", "make", &["-j", "28"], Some(env.clone()))?;
+    run_command_in(
+        &objdir,
+        "make",
+        "make",
         &[
             "install",
             &format!("DESTDIR={}", toolchain.sysroot()?.display()),
             "-j",
             "28",
         ],
-        env.clone(),
+        Some(env.clone()),
     )?;
 
     Ok(())

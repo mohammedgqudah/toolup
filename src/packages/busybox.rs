@@ -1,13 +1,14 @@
 use anyhow::{Context, Result};
+use std::ffi::OsString;
 use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 use std::{fs::OpenOptions, path::PathBuf};
 
+use crate::commands::run_command_in;
 use crate::cpio::pack_rootfs;
 use crate::download::cache_dir;
 use crate::download::download_and_decompress;
-use crate::commands::run_make_with_env_in;
 use crate::profile::Toolchain;
 
 pub fn download_busybox() -> Result<PathBuf> {
@@ -53,15 +54,17 @@ exec setsid cttyhack /bin/sh
         .unwrap();
     init.write_all(init_script.as_bytes())?;
 
-    let env: Vec<(String, String)> = vec![("PATH".into(), toolchain.env_path()?)];
+    let env: Vec<(OsString, OsString)> = vec![("PATH".into(), toolchain.env_path()?)];
 
-    run_make_with_env_in(
+    run_command_in(
         &busybox_dir,
+        "make",
+        "make",
         &[
             format!("CROSS_COMPILE={}-", toolchain.target).as_str(),
             "defconfig",
         ],
-        env.clone(),
+        Some(env.clone()),
     )?;
     fix_busybox_config(busybox_dir.join(".config"))?;
     let mut f = OpenOptions::new()
@@ -75,14 +78,16 @@ exec setsid cttyhack /bin/sh
     // workaround: https://forum.beagleboard.org/t/errors-during-busybox-compilation/38969/6
     writeln!(f, "# CONFIG_TC is not set").unwrap();
 
-    run_make_with_env_in(
+    run_command_in(
         &busybox_dir,
+        "make",
+        "make",
         &[
             format!("CROSS_COMPILE={}-", toolchain.target).as_str(),
             format!("CONFIG_PREFIX={}", &rootfs_dir.display()).as_str(),
             "install",
         ],
-        env,
+        Some(env.clone()),
     )?;
 
     let sysroot = toolchain.sysroot()?;

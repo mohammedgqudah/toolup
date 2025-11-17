@@ -1,4 +1,5 @@
 use std::{
+    ffi::OsString,
     fmt::Display,
     ops::{Deref, DerefMut},
     path::PathBuf,
@@ -7,7 +8,7 @@ use std::{
 
 use anyhow::{Context, Result, anyhow};
 
-use crate::{download::download_and_decompress, commands::run_command_in, profile::Toolchain};
+use crate::{commands::run_command_in, download::download_and_decompress, profile::Toolchain};
 
 pub struct Sysroot(pub PathBuf);
 impl Deref for Sysroot {
@@ -46,7 +47,7 @@ pub fn install_gcc(toolchain: &Toolchain, jobs: u64, stage: GccStage) -> Result<
             let objdir = gcc_dir.join(format!("objdir-stage1-{}", toolchain.id()));
             std::fs::create_dir_all(&objdir).context("failed to create an objdir for the arch")?;
 
-            let env = vec![("PATH".into(), toolchain.env_path()?)];
+            let env: Vec<(OsString, OsString)> = vec![("PATH".into(), toolchain.env_path()?)];
 
             run_command_in(
                 &objdir,
@@ -102,7 +103,7 @@ pub fn install_gcc(toolchain: &Toolchain, jobs: u64, stage: GccStage) -> Result<
             let objdir = gcc_dir.join(format!("objdir-final-{}", toolchain.id()));
             std::fs::create_dir_all(&objdir).context("failed to create an objdir for the arch")?;
 
-            let env = vec![("PATH".into(), toolchain.env_path()?)];
+            let env: Vec<(OsString, OsString)> = vec![("PATH".into(), toolchain.env_path()?)];
 
             let mut args: Vec<String> = vec![
                 format!("--target={}", toolchain.target),

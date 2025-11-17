@@ -1,6 +1,6 @@
-use std::{fmt::Display, path::PathBuf, str::FromStr};
+use std::{ffi::OsString, fmt::Display, path::PathBuf, str::FromStr};
 
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use colored::Colorize;
 
 use crate::{
@@ -406,12 +406,15 @@ impl Toolchain {
         Ok(sysroots_dir()?.join(format!("sysroot-{}", self.id())))
     }
 
-    pub fn env_path(&self) -> Result<String> {
-        let base = std::env::var("PATH").unwrap();
+    /// Returns a modified PATH environment variable that should be used when building any package
+    /// within the toolchain.
+    pub fn env_path(&self) -> Result<OsString> {
+        let base =
+            std::env::var("PATH").context("failed to get the `PATH` environment variable")?;
         let mut paths = std::env::split_paths(&base).collect::<Vec<_>>();
-        paths.insert(0, self.bin_dir()?.to_str().unwrap().into());
+        paths.insert(0, self.bin_dir()?);
 
-        Ok(std::env::join_paths(paths)?.to_str().unwrap().into())
+        Ok(std::env::join_paths(paths)?)
     }
 }
 
