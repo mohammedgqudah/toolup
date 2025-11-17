@@ -3,7 +3,6 @@ use std::str::FromStr;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use colored::Colorize;
 
 mod commands;
 mod cpio;
@@ -108,7 +107,11 @@ fn install_toolchain(
     };
 
     println!("{}", toolchain);
-    log::info!("{}", toolchain.bin_dir()?.display().to_string().bold());
+    log::info!("export PATH=\"{}:$PATH\"", toolchain.bin_dir()?.display());
+    log::info!("export SYSROOT={}", toolchain.sysroot()?.display());
+    log::info!("export PKG_CONFIG_SYSROOT_DIR={}", toolchain.sysroot()?.display());
+    log::info!("export TARGET={}", toolchain.target);
+    log::info!("");
 
     if toolchain.gcc_bin()?.exists() && !force {
         log::info!("toolchain is already installed");
