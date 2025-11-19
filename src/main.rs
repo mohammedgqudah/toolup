@@ -1,27 +1,14 @@
-use std::io::Write;
-use std::str::FromStr;
+use std::{ffi::OsString, io::Write, process::Command, str::FromStr};
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
-mod commands;
-mod cpio;
-mod download;
-mod packages;
-mod profile;
-mod qemu;
-mod sysroot;
-
-use crate::{
+use toolup::{
+    config::resolve_target_toolchain,
     download::cache_dir,
-    packages::binutils::{Binutils, BinutilsVersion, install_binutils},
-    packages::gcc::{GCC, GCCVersion, GccStage, Sysroot, install_gcc},
-    packages::glibc::GlibcVersion,
-    packages::linux::KernelVersion,
-    packages::musl::MuslVersion,
-    profile::{Abi, Libc, Target, Toolchain},
+    install_toolchain,
+    profile::{Target, Toolchain},
     qemu::start_vm,
-    sysroot::setup_sysroot,
 };
 
 #[derive(Parser)]
@@ -48,6 +35,12 @@ enum Commands {
         #[arg(short, long, default_value_t = 10)]
         /// The number of threads to use for running commands
         jobs: u64,
+    },
+    CC {
+        /// e.g. aarch64-unknown-linux-gnu
+        target: String,
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        options: Vec<OsString>,
     },
     Linux {
         /// The kernel version to build. e.g. 6.17
@@ -78,70 +71,6 @@ enum CacheAction {
     },
     Dir {},
     Prune {},
-}
-
-/// Install a toolchain.
-///
-/// use `force` to forcefully re-install a toolchain if it was already installed.
-fn install_toolchain(
-    target_str: String,
-    gcc_str: String,
-    libc_str: String,
-    binutils_str: String,
-    kernel_version: Option<&KernelVersion>,
-    jobs: u64,
-    force: bool,
-) -> Result<Toolchain> {
-    let target = Target::from_str(&target_str)?;
-    let binutils = Binutils::new(BinutilsVersion::from_str(&binutils_str)?);
-    let gcc = GCC::new(GCCVersion::from_str(&gcc_str)?);
-    let libc = match target.abi {
-        Abi::Musl => Libc::Musl(MuslVersion::from_str(&libc_str)?),
-        _ => Libc::Glibc(GlibcVersion::from_str(&libc_str)?),
-    };
-
-    let toolchain = if let Some(kernel_version) = kernel_version {
-        Toolchain::new_with_kernel(target, binutils, gcc, libc, kernel_version.clone())
-    } else {
-        Toolchain::new(target, binutils, gcc, libc)
-    };
-
-    println!("{}", toolchain);
-    log::info!("export PATH=\"{}:$PATH\"", toolchain.bin_dir()?.display());
-    log::info!("export SYSROOT={}", toolchain.sysroot()?.display());
-    log::info!(
-        "export PKG_CONFIG_SYSROOT_DIR={}",
-        toolchain.sysroot()?.display()
-    );
-    log::info!("export TARGET={}", toolchain.target);
-    log::info!("");
-
-    if toolchain.gcc_bin()?.exists() && !force {
-        log::info!("toolchain is already installed");
-        return Ok(toolchain);
-    }
-
-    match target {
-        // freestanding
-        Target {
-            abi: Abi::Elf | Abi::Eabihf | Abi::Eabi,
-            ..
-        } => {
-            install_binutils(&toolchain, jobs)?;
-            install_gcc(&toolchain, jobs, GccStage::Stage1)?;
-        }
-        Target {
-            abi: Abi::Gnu | Abi::GnuEabi | Abi::GnuEabihf | Abi::Musl,
-            ..
-        } => {
-            install_binutils(&toolchain, jobs)?;
-            let sysroot = setup_sysroot(&toolchain, jobs)?;
-            install_gcc(&toolchain, jobs, GccStage::Final(Some(Sysroot(sysroot))))?;
-        }
-        _ => unimplemented!(),
-    };
-
-    Ok(toolchain)
 }
 
 fn main() -> Result<()> {
@@ -177,6 +106,11 @@ fn main() -> Result<()> {
             });
             install_toolchain(toolchain, gcc, libc, binutils, None, jobs, false)?;
         }
+        Commands::CC { target, options } => {
+            let toolchain: Toolchain = resolve_target_toolchain(target)?.into();
+            eprintln!("{}", toolchain);
+            Command::new(toolchain.gcc_bin()?).args(options).status()?;
+        }
         Commands::Linux {
             version,
             toolchain,
@@ -186,8 +120,8 @@ fn main() -> Result<()> {
         } => {
             let target = Target::from_str(toolchain.as_str())?;
             let (kernel_image, toolchain) =
-                packages::linux::get_image(&target, &version, jobs, menuconfig, defconfig)?;
-            let rootfs = packages::busybox::build_rootfs(&toolchain)?;
+                toolup::packages::linux::get_image(&target, &version, jobs, menuconfig, defconfig)?;
+            let rootfs = toolup::packages::busybox::build_rootfs(&toolchain)?;
             start_vm(&target, kernel_image, rootfs)?;
         }
         Commands::Cache { action } => match action {

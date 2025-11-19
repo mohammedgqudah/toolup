@@ -47,7 +47,7 @@ pub fn install_binutils(toolchain: &Toolchain, jobs: u64) -> Result<()> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct BinutilsVersion(u64, u64, u64);
+pub struct BinutilsVersion(pub u64, pub u64, pub u64);
 
 impl FromStr for BinutilsVersion {
     type Err = anyhow::Error;
@@ -81,6 +81,7 @@ impl Display for BinutilsVersion {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Binutils {
     pub version: BinutilsVersion,
 }
@@ -88,5 +89,12 @@ pub struct Binutils {
 impl Binutils {
     pub fn new(version: BinutilsVersion) -> Self {
         Self { version }
+    }
+}
+impl Default for Binutils {
+    fn default() -> Self {
+        Self {
+            version: BinutilsVersion(2, 45, 0),
+        }
     }
 }

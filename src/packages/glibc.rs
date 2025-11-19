@@ -103,7 +103,13 @@ pub fn install_glibc_sysroot(toolchain: &Toolchain) -> Result<()> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct GlibcVersion(u64, u64, u64);
+pub struct GlibcVersion(pub u64, pub u64, pub u64);
+
+impl Default for GlibcVersion {
+    fn default() -> Self {
+        Self(2, 42, 0)
+    }
+}
 
 impl FromStr for GlibcVersion {
     type Err = anyhow::Error;

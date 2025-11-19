@@ -12,7 +12,7 @@ use crate::{
     packages::musl::MuslVersion,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Arch {
     X86_64,
     I686,
@@ -61,7 +61,7 @@ impl Arch {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Os {
     None, // bare-metal
     Linux,
@@ -76,7 +76,7 @@ impl ToString for Os {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Abi {
     Gnu,
     Musl,
@@ -103,7 +103,7 @@ impl ToString for Abi {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Vendor {
     Unknown,
     Pc,
@@ -190,7 +190,7 @@ impl FromStr for Os {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Target {
     pub arch: Arch,
     pub vendor: Vendor,
@@ -199,6 +199,10 @@ pub struct Target {
 }
 
 impl Target {
+    pub fn is_musl(&self) -> bool {
+        matches!(self.abi, Abi::Musl)
+    }
+
     pub fn to_target_string(&self) -> String {
         match self {
             Target {
@@ -316,6 +320,7 @@ impl Display for Target {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Libc {
     Glibc(GlibcVersion),
     Musl(MuslVersion),
@@ -333,6 +338,8 @@ impl Display for Libc {
         }
     }
 }
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Toolchain {
     pub target: Target,
     pub binutils: Binutils,
@@ -368,6 +375,19 @@ impl Toolchain {
             libc,
             kernel: Some(kernel_version),
         }
+    }
+
+    /// Returns the default toolchain for a target.
+    pub fn target_default(target: &Target) -> Self {
+        let gcc = GCC::default();
+        let binutils = Binutils::default();
+        let libc = if target.is_musl() {
+            Libc::Musl(MuslVersion::default())
+        } else {
+            Libc::Glibc(GlibcVersion::default())
+        };
+
+        Self::new(target.clone(), binutils, gcc, libc)
     }
 
     /// Returns the location of the `gcc` binary for this toolchain.
@@ -447,7 +467,7 @@ mod test {
     #[test]
     pub fn test() -> Result<()> {
         assert_eq!(
-            Target::from_str("x86_64-unknown-none-elf")?,
+            Target::from_str("x86_64-elf")?,
             Target {
                 arch: Arch::X86_64,
                 vendor: Vendor::Unknown,
@@ -474,12 +494,12 @@ mod test {
             }
         );
         assert_eq!(
-            Target::from_str("i686-unknown-none-gnu")?,
+            Target::from_str("i686-elf")?,
             Target {
                 arch: Arch::I686,
                 vendor: Vendor::Unknown,
                 os: Os::None,
-                abi: Abi::Gnu
+                abi: Abi::Elf
             }
         );
         assert_eq!(

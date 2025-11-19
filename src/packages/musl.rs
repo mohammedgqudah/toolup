@@ -86,6 +86,12 @@ pub fn install_musl_sysroot(toolchain: &Toolchain) -> Result<()> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MuslVersion(u64, u64, u64);
 
+impl Default for MuslVersion {
+    fn default() -> Self {
+        Self(1, 2, 5)
+    }
+}
+
 impl FromStr for MuslVersion {
     type Err = anyhow::Error;
 
