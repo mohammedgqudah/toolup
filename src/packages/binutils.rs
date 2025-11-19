@@ -81,7 +81,7 @@ impl Display for BinutilsVersion {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct Binutils {
     pub version: BinutilsVersion,
 }

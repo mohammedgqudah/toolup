@@ -22,10 +22,8 @@ pub mod profile;
 pub mod qemu;
 pub mod sysroot;
 
-/// Install a toolchain.
-///
-/// use `force` to forcefully re-install a toolchain if it was already installed.
-pub fn install_toolchain(
+/// Similar to `install_toolchain` but will parse the toolchain from strings.
+pub fn install_toolchain_str(
     target_str: String,
     gcc_str: String,
     libc_str: String,
@@ -48,7 +46,15 @@ pub fn install_toolchain(
         Toolchain::new(target, binutils, gcc, libc)
     };
 
+    install_toolchain(toolchain, jobs, force)
+}
+
+/// Install a toolchain.
+///
+/// use `force` to forcefully re-install a toolchain if it was already installed.
+pub fn install_toolchain(toolchain: Toolchain, jobs: u64, force: bool) -> Result<Toolchain> {
     println!("{}", toolchain);
+
     log::info!("export PATH=\"{}:$PATH\"", toolchain.bin_dir()?.display());
     log::info!("export SYSROOT={}", toolchain.sysroot()?.display());
     log::info!(
@@ -63,7 +69,7 @@ pub fn install_toolchain(
         return Ok(toolchain);
     }
 
-    match target {
+    match toolchain.target {
         // freestanding
         Target {
             abi: Abi::Elf | Abi::Eabihf | Abi::Eabi,

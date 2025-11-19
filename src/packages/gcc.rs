@@ -177,7 +177,7 @@ impl Display for GCCVersion {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct GCC {
     pub version: GCCVersion,
 }

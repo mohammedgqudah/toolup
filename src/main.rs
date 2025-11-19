@@ -6,7 +6,7 @@ use clap::{Parser, Subcommand};
 use toolup::{
     config::resolve_target_toolchain,
     download::cache_dir,
-    install_toolchain,
+    install_toolchain, install_toolchain_str,
     profile::{Target, Toolchain},
     qemu::start_vm,
 };
@@ -105,11 +105,11 @@ fn main() -> Result<()> {
             } else {
                 "2.42".into()
             });
-            install_toolchain(toolchain, gcc, libc, binutils, None, jobs, false)?;
+            install_toolchain_str(toolchain, gcc, libc, binutils, None, jobs, false)?;
         }
         Commands::CC { target, options } => {
             let toolchain: Toolchain = resolve_target_toolchain(&target)?.into();
-            eprintln!("{}", toolchain);
+            install_toolchain(toolchain.clone(), 10, false)?;
             Command::new(toolchain.gcc_bin()?).args(options).status()?;
         }
         Commands::Linux {

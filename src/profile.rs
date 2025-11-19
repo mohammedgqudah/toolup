@@ -320,7 +320,7 @@ impl Display for Target {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum Libc {
     Glibc(GlibcVersion),
     Musl(MuslVersion),
@@ -339,7 +339,7 @@ impl Display for Libc {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct Toolchain {
     pub target: Target,
     pub binutils: Binutils,
