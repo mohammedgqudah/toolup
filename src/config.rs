@@ -171,29 +171,23 @@ fn set_global_toolchain(toolchain: &Toolchain) -> Result<()> {
     Ok(())
 }
 
-pub enum GlobalToolchain {
-    /// Target toolchain was already configured in the global config
-    Found(Toolchain),
-    /// Target toolchain was initialized to the default
-    Created(Toolchain),
-}
-
 /// Ensure a global toolchain is configured for `target`.
 ///
 /// If a toolchain is already configured globally, return it.
-/// Otherwise, initialize it to the default and return that.
-fn ensure_global_toolchain(target_str: &str) -> Result<GlobalToolchain> {
+/// Otherwise, initialize it to the default and return that. The second tuple element indicates
+/// whether the configuration was created or not.
+fn get_or_init_global_toolchain(target_str: &str) -> Result<(Toolchain, bool)> {
     let global = load_global_config()?;
     let target = Target::from_str(target_str)?;
     let default = Toolchain::target_default(&target);
 
     Ok(match global.toolchain.get(target_str) {
-        Some(existing_config) => GlobalToolchain::Found(existing_config.to_toolchain(target_str)?),
+        Some(cfg) => (cfg.to_toolchain(target_str)?, false),
         None => {
             // A toolchain for `target` was never configured, edit the file and set a default toolchain for
             // `target`.
             set_global_toolchain(&default)?;
-            GlobalToolchain::Created(default.into())
+            (default.into(), true)
         }
     })
 }
@@ -227,8 +221,8 @@ pub fn resolve_target_toolchain(target: &str) -> Result<ToolchainConfigResult> {
     };
 
     // fallback to global configuration
-    Ok(match ensure_global_toolchain(target)? {
-        GlobalToolchain::Found(toolchain) => ToolchainConfigResult::GlobalFound(toolchain),
-        GlobalToolchain::Created(toolchain) => ToolchainConfigResult::GlobalCreated(toolchain),
+    Ok(match get_or_init_global_toolchain(target)? {
+        (toolchain, false) => ToolchainConfigResult::GlobalFound(toolchain),
+        (toolchain, true) => ToolchainConfigResult::GlobalCreated(toolchain),
     })
 }
