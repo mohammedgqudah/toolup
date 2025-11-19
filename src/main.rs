@@ -107,7 +107,7 @@ fn main() -> Result<()> {
             install_toolchain(toolchain, gcc, libc, binutils, None, jobs, false)?;
         }
         Commands::CC { target, options } => {
-            let toolchain: Toolchain = resolve_target_toolchain(target)?.into();
+            let toolchain: Toolchain = resolve_target_toolchain(&target)?.into();
             eprintln!("{}", toolchain);
             Command::new(toolchain.gcc_bin()?).args(options).status()?;
         }

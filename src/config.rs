@@ -59,8 +59,8 @@ impl From<&Toolchain> for ToolchainConfig {
 
 impl ToolchainConfig {
     /// Convert the toolchain configuration from TOML to a `Toolchain`
-    fn to_toolchain(self: &ToolchainConfig, target: impl AsRef<str>) -> Result<Toolchain> {
-        let target = Target::from_str(target.as_ref())?;
+    fn to_toolchain(self: &ToolchainConfig, target: &str) -> Result<Toolchain> {
+        let target = Target::from_str(target)?;
         let binutils = Binutils {
             version: BinutilsVersion::from_str(&self.binutils)?,
         };
@@ -182,15 +182,13 @@ pub enum GlobalToolchain {
 ///
 /// If a toolchain is already configured globally, return it.
 /// Otherwise, initialize it to the default and return that.
-fn ensure_global_toolchain(target_str: impl AsRef<str>) -> Result<GlobalToolchain> {
+fn ensure_global_toolchain(target_str: &str) -> Result<GlobalToolchain> {
     let global = load_global_config()?;
-    let target = Target::from_str(target_str.as_ref())?;
+    let target = Target::from_str(target_str)?;
     let default = Toolchain::target_default(&target);
 
-    Ok(match global.toolchain.get(target_str.as_ref()) {
-        Some(existing_config) => {
-            GlobalToolchain::Found(existing_config.to_toolchain(target_str.as_ref())?)
-        }
+    Ok(match global.toolchain.get(target_str) {
+        Some(existing_config) => GlobalToolchain::Found(existing_config.to_toolchain(target_str)?),
         None => {
             // A toolchain for `target` was never configured, edit the file and set a default toolchain for
             // `target`.
@@ -206,24 +204,24 @@ fn ensure_global_toolchain(target_str: impl AsRef<str>) -> Result<GlobalToolchai
 /// - Local configuration `toolup.toml`
 //  - Global configuration
 //  - Otherwise, initialize the global configuration with a default toolchain for target.
-pub fn resolve_target_toolchain(target: impl AsRef<str>) -> Result<ToolchainConfigResult> {
+pub fn resolve_target_toolchain(target: &str) -> Result<ToolchainConfigResult> {
     let local = load_local_config()?;
     match local {
         None => {
             log::debug!(
                 "no `toolup.toml` detected in current directory. Using the global toolchain for `{}`",
-                target.as_ref()
+                target
             );
         }
         Some(local_config) => {
-            if let Some(toolchain_config) = local_config.toolchain.get(target.as_ref()) {
+            if let Some(toolchain_config) = local_config.toolchain.get(target) {
                 return Ok(ToolchainConfigResult::LocalFound(
                     toolchain_config.to_toolchain(target.as_ref())?,
                 ));
             }
             log::debug!(
                 "`toolup.toml` doesn't specify a toolchain for target `{}`. Using the global toolchain",
-                target.as_ref()
+                target
             );
         }
     };
