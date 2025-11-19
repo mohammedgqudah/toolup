@@ -31,4 +31,5 @@ lto = true
 strip = true
 
 [dev-dependencies]
+serial_test = "3.2.0"
 similar-asserts = "1.7.0"

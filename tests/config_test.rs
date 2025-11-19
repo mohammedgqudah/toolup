@@ -1,8 +1,9 @@
 use std::str::FromStr;
 
 use anyhow::Result;
+use serial_test::serial;
 use toolup::{
-    config::{ToolchainConfigResult, resolve_target_toolchain},
+    config::ToolchainConfigResult,
     packages::{
         binutils::{Binutils, BinutilsVersion},
         gcc::{GCC, GCCVersion},
@@ -20,6 +21,7 @@ fn test_config_dir() -> tempfile::TempDir {
 }
 
 #[test]
+#[serial]
 fn test_global_default_target_toolchain() -> Result<()> {
     let test_config = test_config_dir();
     let global_config = test_config.path().join("toolup.toml");
@@ -69,6 +71,7 @@ fn test_global_default_target_toolchain() -> Result<()> {
 }
 
 #[test]
+#[serial]
 fn test_local_takes_precedence_over_global() -> Result<()> {
     let test_config = test_config_dir();
     let global_config = test_config.path().join("toolup.toml");
