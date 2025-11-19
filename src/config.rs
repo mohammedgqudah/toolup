@@ -20,6 +20,7 @@ use std::{
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use toml_edit::DocumentMut;
 
 use crate::{
     packages::{
@@ -57,6 +58,7 @@ impl From<&Toolchain> for ToolchainConfig {
 }
 
 impl ToolchainConfig {
+    /// Convert the toolchain configuration from TOML to a `Toolchain`
     fn to_toolchain(self: &ToolchainConfig, target: impl AsRef<str>) -> Result<Toolchain> {
         let target = Target::from_str(target.as_ref())?;
         let binutils = Binutils {
@@ -136,39 +138,35 @@ impl From<ToolchainConfigResult> for Toolchain {
     }
 }
 
-/// Edits the global configuration file and updates the toolchain
+/// Updates the toolchain configuration for a target in the global configuration. This will
+/// preserve comments and the original layout of the file.
 fn set_global_toolchain(toolchain: &Toolchain) -> Result<()> {
     let global_config = global_config_path();
+    let target = toolchain.target.to_string();
 
     let toml_str = std::fs::read_to_string(&global_config)
         .context(format!("failed to read `{}`", global_config.display()))?;
 
-    let mut doc = toml_str
-        .parse::<toml_edit::DocumentMut>()
-        .context("failed to parse TOML")?;
-    let serde_cfg: Config = toml::from_str(&toml_str).unwrap();
-
-    if serde_cfg
-        .toolchain
-        .contains_key(&toolchain.target.to_string())
-    {
-        log::debug!("updating global toolchain {}", toolchain.target.to_string());
-    } else {
-        log::debug!("setting global toolchain {}", toolchain.target.to_string());
-    };
-
-    let item = toml_edit::ser::to_document(&ToolchainConfig::from(toolchain))?.into_item();
-
-    let toolchain_tbl = doc["toolchain"]
+    let mut doc: DocumentMut = toml_str.parse().context("failed to parse TOML")?;
+    let toolchain_tbl = doc
+        .entry("toolchain")
+        .or_insert(toml_edit::table())
         .as_table_mut()
         .expect("`toolchain` is a table");
 
     // do not add an empty [toolchain] header
     toolchain_tbl.set_implicit(true);
 
-    doc["toolchain"][&toolchain.target.to_string()] = item;
+    if toolchain_tbl.contains_key(&target) {
+        log::debug!("updating the global toolchain for {target}");
+    }
 
-    std::fs::write(global_config, doc.to_string())?;
+    let item = toml_edit::ser::to_document(&ToolchainConfig::from(toolchain))?.into_item();
+    toolchain_tbl[&target] = item;
+
+    std::fs::write(&global_config, doc.to_string())
+        .context(format!("failed to write to `{}`", global_config.display()))?;
+
     Ok(())
 }
 
