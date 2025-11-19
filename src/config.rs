@@ -93,13 +93,14 @@ pub fn load_config(filepath: impl AsRef<Path>) -> Result<Option<Config>> {
     ))?)
 }
 
-fn global_config_path() -> PathBuf {
-    Path::new(&std::env::var("XDG_CONFIG_HOME").unwrap()).join("toolup.toml")
+fn global_config_path() -> Result<PathBuf> {
+    let config_dir = dirs::config_dir().context("failed to get config directory")?;
+    Ok(Path::new(&config_dir).join("toolup.toml"))
 }
 
 /// Load configuration from the global `toolup.toml`.
 fn load_global_config() -> Result<Config> {
-    let global_config = global_config_path();
+    let global_config = global_config_path()?;
 
     match load_config(&global_config)? {
         None => {
@@ -141,7 +142,7 @@ impl From<ToolchainConfigResult> for Toolchain {
 /// Updates the toolchain configuration for a target in the global configuration. This will
 /// preserve comments and the original layout of the file.
 fn set_global_toolchain(toolchain: &Toolchain) -> Result<()> {
-    let global_config = global_config_path();
+    let global_config = global_config_path()?;
     let target = toolchain.target.to_string();
 
     let toml_str = std::fs::read_to_string(&global_config)

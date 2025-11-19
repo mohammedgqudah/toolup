@@ -11,6 +11,7 @@ chrono = "0.4.42"
 clap = { version = "4.5.51", features = ["derive"]}
 colored = "3.0.0"
 cpio = "0.4.1"
+dirs = "6.0.0"
 env_logger = "0.11.8"
 flate2 = "1.1.5"
 indicatif = "0.18.2"
