@@ -36,6 +36,7 @@ enum Commands {
         /// The number of threads to use for running commands
         jobs: u64,
     },
+    /// Invoke the GCC compiler for the selected toolchain
     CC {
         /// e.g. aarch64-unknown-linux-gnu
         target: String,
