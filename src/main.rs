@@ -14,6 +14,8 @@ use toolup::{
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Cli {
+    #[arg(long, short, action = clap::ArgAction::Count, global = true)]
+    verbose: u8,
     #[command(subcommand)]
     command: Commands,
 }
@@ -78,8 +80,14 @@ enum CacheAction {
 }
 
 fn main() -> Result<()> {
+    let cli = Cli::parse();
+
     env_logger::builder()
-        .filter_level(log::LevelFilter::Debug)
+        .filter_level(match cli.verbose {
+            0 => log::LevelFilter::Info,
+            1 => log::LevelFilter::Debug,
+            _ => log::LevelFilter::Trace,
+        })
         .format(|buf, record| {
             let warn_style = buf.default_level_style(log::Level::Warn);
             match record.level() {
@@ -92,8 +100,6 @@ fn main() -> Result<()> {
             }
         })
         .init();
-
-    let cli = Cli::parse();
 
     match cli.command {
         Commands::Install {
