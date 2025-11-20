@@ -1,14 +1,19 @@
-This is my personal toolchain installer that I use to easily build cross compilers.
+# Toolup
+A tool to manage C toolchains and building Linux kernels.
 
-It doesn't do anything fancy besides running `make` and `configure` with some defaults that make sense to me. I'm 100% it only works on my machine (x86_64 GNU/Linux Archlinux) 
+I built this tool for two main reasons:
 
-it manages:
-1. bunutils
-2. gcc
-3. glibc
-4. linux kernel
+1. To have a simple interface for building cross-compilers and managing toolchains for C. (e.g. `toolup install aarch64-unknown-linux-musl`)
+2. To quickly build different versions of the Linux kernel and run programs inside a VM using that kernel - for research or compatibility tests. (e.g. `toolup linux 5.11 ./my-bin`)
+
+## Toolchains
+A single toochain consists of a **target**, **binutils**, **gcc** and **libc** (musl, or glibc). The install command accepts an optional version for each component, if none are specified, the latest version will be used.
+You can have multiple toolchains for the same target (i.e. a different gcc or binutils version), and toolup will read `toolup.toml` to see which toolchain to use when invoking the compiler via `toolup cc`.
+
 
 ## Usage Examples
+`toolup install`
+
 ```bash
 toolup install avr-elf
 toolup install x86_64-elf
@@ -19,6 +24,8 @@ toolup install bpf-unknown-none
 toolup install aarch64-unknown-none-gnu
 ```
 
+`toolup linux`
+
 ```bash
 # quickly build a kernel image and a minimal rootfs and start qemu-system-<arch> in the terminal
 toolup linux 6.16 -t riscv64-unknown-linux-gnu
@@ -27,6 +34,7 @@ toolup linux 6.16 -t riscv64-unknown-linux-gnu
 toolup linux 6.17 -t ppc64-unknown-linux-gnu -j20 -m
 ```
 
+qemu userspace emulation
 ```
 aarch64-unknown-linux-gnu-gcc test.c -o test
 qemu-aarch64 -L `aarch64-unknown-linux-gnu-gcc -print-sysroot` ./test
@@ -36,9 +44,6 @@ qemu-aarch64 -L `aarch64-unknown-linux-gnu-gcc -print-sysroot` ./test
 - We still have a dependency on the host (e.g. when compiling kernel host tools) and that's the reason I can't build old kernels or older GCC versions.
 
 ## Screenshots
-<img width="500" alt="image" src="https://github.com/user-attachments/assets/a876bfac-97fc-424b-85dc-f92bbbf0c208" />
-
-<img width="500"  alt="image" src="https://github.com/user-attachments/assets/580d9b8b-6f19-4b27-9ae9-4692f63d352a" />
 
 ```
 λ tree -L 2 ~/.toolup
