@@ -1,5 +1,8 @@
 name: Build Rust Release Binary
 
+permissions:
+  contents: write
+
 on:
   release:
     types: [published]
