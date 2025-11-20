@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     input:
   release:
-    types: [published]
+    types: [published, edited]
 
 jobs:
   build:
