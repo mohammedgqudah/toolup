@@ -20,9 +20,10 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    Toolchain {
+    /// Install a toolchain for target
+    Install {
         /// e.g. aarch64-unknown-linux-gnu
-        toolchain: String,
+        target: String,
         #[arg(long, default_value = "15.2.0")]
         /// GCC version
         gcc: String,
@@ -43,6 +44,7 @@ enum Commands {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         options: Vec<OsString>,
     },
+    /// Manage Linux kernel builds
     Linux {
         /// The kernel version to build. e.g. 6.17
         version: String,
@@ -58,6 +60,7 @@ enum Commands {
         /// Whether to run defconfig or not. This will erase old config.
         defconfig: bool,
     },
+    /// Manage cache
     Cache {
         #[command(subcommand)]
         action: CacheAction,
@@ -93,8 +96,8 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Toolchain {
-            toolchain,
+        Commands::Install {
+            target: toolchain,
             gcc,
             libc,
             binutils,

@@ -10,13 +10,13 @@ it manages:
 
 ## Usage Examples
 ```bash
-toolup toolchain avr-elf
-toolup toolchain x86_64-elf
-toolup toolchain i686-elf
-toolup toolchain riscv64-unknown-linux-gnu
-toolup toolchain armv7-unknown-none-eabihf
-toolup toolchain bpf-unknown-none
-toolup toolchain aarch64-unknown-none-gnu
+toolup install avr-elf
+toolup install x86_64-elf
+toolup install i686-elf
+toolup install riscv64-unknown-linux-gnu
+toolup install armv7-unknown-none-eabihf
+toolup install bpf-unknown-none
+toolup install aarch64-unknown-none-gnu
 ```
 
 ```bash
@@ -68,7 +68,7 @@ qemu-aarch64 -L `aarch64-unknown-linux-gnu-gcc -print-sysroot` ./test
 ```
 
 ```
-λ toolup toolchain aarch64-elf
+λ toolup install aarch64-elf
 Toolchain: aarch64-elf
 ├─ GCC: 15.2.0
 ├─ Binutils: 2.45
