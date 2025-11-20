@@ -10,8 +10,23 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    env:
+      CARGO_TARGET_DIR: ~/.cargo-target
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Cache Rust build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo-target
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
       - name: Run tests
         run: cargo test
