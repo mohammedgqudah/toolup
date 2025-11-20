@@ -12,11 +12,14 @@ use crate::{
 pub fn install_binutils(toolchain: &Toolchain, jobs: u64) -> Result<()> {
     log::info!("=> install binutils {}", toolchain.binutils.version);
 
+    let tarball = if toolchain.binutils.version <= BinutilsVersion(2, 28, 1) {
+        format!("{}.tar.gz", toolchain.binutils.version)
+    } else {
+        format!("{}.tar.xz", toolchain.binutils.version)
+    };
+
     let binutils_dir = download_and_decompress(
-        format!(
-            "https://ftp.gnu.org/gnu/binutils/binutils-{}.tar.xz",
-            toolchain.binutils.version
-        ),
+        format!("https://ftp.gnu.org/gnu/binutils/binutils-{tarball}",),
         format!("binutils-{}", toolchain.binutils.version),
         true,
     )

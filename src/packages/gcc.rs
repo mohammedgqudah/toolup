@@ -34,7 +34,11 @@ pub enum GccStage {
 
 pub fn install_gcc(toolchain: &Toolchain, jobs: u64, stage: GccStage) -> Result<()> {
     let gcc_name = format!("gcc-{}", toolchain.gcc.version);
-    let tarball = format!("{gcc_name}.tar.xz");
+    let tarball = if toolchain.gcc.version <= GCCVersion(10, 1, 0) {
+        format!("{gcc_name}.tar.gz")
+    } else {
+        format!("{gcc_name}.tar.xz")
+    };
 
     let gcc_dir = download_and_decompress(
         format!("https://ftp.gnu.org/gnu/gcc/{gcc_name}/{tarball}"),
