@@ -148,7 +148,7 @@ pub fn install_gcc(toolchain: &Toolchain, jobs: u64, stage: GccStage) -> Result<
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct GCCVersion(u64, u64, u64);
+pub struct GCCVersion(pub u64, pub u64, pub u64);
 
 impl FromStr for GCCVersion {
     type Err = anyhow::Error;
@@ -177,6 +177,7 @@ impl Display for GCCVersion {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct GCC {
     pub version: GCCVersion,
 }

@@ -12,7 +12,7 @@ use anyhow::{Context, Result, anyhow};
 use crate::{
     commands::{run_command_in, run_make_in},
     download::{download_and_decompress, linux_images_dir},
-    install_toolchain,
+    install_toolchain_str,
     profile::{Arch, Target, Toolchain},
 };
 
@@ -267,7 +267,7 @@ pub fn get_image(
 
     let kernel_version = KernelVersion::from_str(version.as_ref())?;
     let toolchain = if kernel_version <= KernelVersion(5, 1, 0) {
-        install_toolchain(
+        install_toolchain_str(
             target.to_string(),
             "7.5.0".into(),
             "2.30".into(),
@@ -277,7 +277,7 @@ pub fn get_image(
             false,
         )?
     } else if kernel_version <= KernelVersion(5, 10, 0) {
-        install_toolchain(
+        install_toolchain_str(
             target.to_string(),
             "15.2.0".into(),
             "2.35".into(),
@@ -287,7 +287,7 @@ pub fn get_image(
             false,
         )?
     } else {
-        install_toolchain(
+        install_toolchain_str(
             target.to_string(),
             "15.2.0".into(),
             "2.42".into(),

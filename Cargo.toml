@@ -11,13 +11,18 @@ chrono = "0.4.42"
 clap = { version = "4.5.51", features = ["derive"]}
 colored = "3.0.0"
 cpio = "0.4.1"
+dirs = "6.0.0"
 env_logger = "0.11.8"
 flate2 = "1.1.5"
 indicatif = "0.18.2"
 log = "0.4.28"
 reqwest = { version = "0.12.24", features = ["blocking", "rustls-tls"], default-features = false}
+serde = { version = "1.0.228", features = ["derive"] }
 #rust-lzma = { git = "https://github.com/mohammedgqudah/rust-lzma", branch = "master" }
 tar = "0.4.44"
+tempfile = "3.23.0"
+toml = "0.9.8"
+toml_edit = { version = "0.23.7", features = ["serde"] }
 walkdir = "2.5.0"
 xz2 = "0.1.7"
 
@@ -25,3 +30,7 @@ xz2 = "0.1.7"
 opt-level = "z"
 lto = true
 strip = true
+
+[dev-dependencies]
+serial_test = "3.2.0"
+similar-asserts = "1.7.0"
