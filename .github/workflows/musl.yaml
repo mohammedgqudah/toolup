@@ -34,4 +34,4 @@ jobs:
         run: rustup target add x86_64-unknown-linux-musl
       - name: static build
         run: |
-          TARGET_CC="cargo run cc x86_64-unknown-linux-musl" cargo build --release --target x86_64-unknown-linux-musl
+          TARGET_CC="~/.cargo-target/debug/toolup cc x86_64-unknown-linux-musl" cargo build --release --target x86_64-unknown-linux-musl
