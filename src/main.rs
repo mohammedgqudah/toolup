@@ -1,4 +1,4 @@
-use std::{ffi::OsString, io::Write, process::Command, str::FromStr};
+use std::{ffi::OsString, io::Write, path::PathBuf, process::Command, str::FromStr};
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -7,7 +7,8 @@ use toolup::{
     config::resolve_target_toolchain,
     download::cache_dir,
     install_toolchain, install_toolchain_str,
-    profile::{Target, Toolchain},
+    packages::{busybox, linux},
+    profile::{Arch, Os, Target, Toolchain, Vendor},
     qemu::start_vm,
 };
 
@@ -50,8 +51,8 @@ enum Commands {
     Linux {
         /// The kernel version to build. e.g. 6.17
         version: String,
-        #[arg(long, short, default_value = "x86_64-unknown-linux-gnu")]
-        toolchain: String,
+        #[arg(long, short, default_value = "x86_64")]
+        architecture: String,
         #[arg(short, long, default_value_t = 10)]
         /// The number of threads to use for running commands
         jobs: u64,
@@ -61,6 +62,14 @@ enum Commands {
         #[arg(short, long, default_value_t = false)]
         /// Whether to run defconfig or not. This will erase old config.
         defconfig: bool,
+        #[arg(short, long, value_name = "PROGRAM_PATH")]
+        /// Copy a program from host and run it in a virtual machine using the built kernel.
+        ///
+        /// The program's output will be streamed live to the host, and the command will exit with the same exit
+        /// code as the program running inside the virtual machine.
+        ///
+        /// Useful for testing a program across different kernel versions and configurations.
+        exec: Option<PathBuf>,
     },
     /// Manage cache
     Cache {
@@ -123,15 +132,22 @@ fn main() -> Result<()> {
         }
         Commands::Linux {
             version,
-            toolchain,
+            architecture,
             jobs,
             menuconfig,
             defconfig,
+            exec: _,
         } => {
-            let target = Target::from_str(toolchain.as_str())?;
+            let arch = Arch::from_str(architecture.as_str())?;
+            let target = Target {
+                arch,
+                vendor: Vendor::Unknown,
+                abi: toolup::profile::Abi::Gnu,
+                os: Os::Linux,
+            };
             let (kernel_image, toolchain) =
-                toolup::packages::linux::get_image(&target, &version, jobs, menuconfig, defconfig)?;
-            let rootfs = toolup::packages::busybox::build_rootfs(&toolchain)?;
+                linux::get_image(&target, &version, jobs, menuconfig, defconfig)?;
+            let rootfs = busybox::build_rootfs(&toolchain)?;
             start_vm(&target, kernel_image, rootfs)?;
         }
         Commands::Cache { action } => match action {

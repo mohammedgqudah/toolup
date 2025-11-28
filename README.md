@@ -28,10 +28,10 @@ toolup install aarch64-unknown-none-gnu
 
 ```bash
 # quickly build a kernel image and a minimal rootfs and start qemu-system-<arch> in the terminal
-toolup linux 6.16 -t riscv64-unknown-linux-gnu
+toolup linux 6.16 -a riscv64
 
 # -m will open the kernel menuconfig, since this is `ppc64-`, we can configure a big endian kernel
-toolup linux 6.17 -t ppc64-unknown-linux-gnu -j20 -m
+toolup linux 6.17 -a ppc64 -j20 -m
 ```
 
 qemu userspace emulation
